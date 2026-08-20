@@ -12,6 +12,13 @@ version: 1.20.1
 date-released: 2026-08-19
 license: MIT
 repository-code: "https://github.com/teindor/dmsa"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.XXXXXXX"
+    description: "Concept DOI - resolves to the latest release. Cite this one."
+  - type: doi
+    value: "10.5281/zenodo.22023958"
+    description: "Version DOI - this release (1.20.1) specifically."
 abstract: >-
   DMSA aligns probe-level DNA methylation effects to their predicted
   consequence for gene expression before aggregating them, tests each unit
