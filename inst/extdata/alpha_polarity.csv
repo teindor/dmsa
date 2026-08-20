@@ -1,0 +1,117 @@
+system_id,system,gene,w_g_draft,role,confidence,rationale
+2,HPA axis,CRH,1,driver,high,initiates cascade; more CRH = more axis drive
+2,HPA axis,UCN,1,driver,medium,CRHR1/2 ligand sustaining response beyond CRH pulse
+2,HPA axis,POMC,1,driver,high,ACTH precursor
+2,HPA axis,PCSK1,1,driver,medium,cleaves POMC to ACTH (rate-limiting)
+2,HPA axis,MC2R,1,driver,high,adrenal ACTH receptor; obligatory step to cortisol
+2,HPA axis,MRAP,1,driver,medium,required for MC2R surface expression
+2,HPA axis,TBX19,1,driver,medium,corticotroph differentiation / POMC transcription
+2,HPA axis,HSD11B1,1,driver,high,regenerates active cortisol in tissue
+2,HPA axis,CRHR1,1,driver,high,mediates CRH->ACTH (0 usable probes)
+2,HPA axis,NR3C1,-1,brake,high,GR negative feedback; more GR = stronger feedback = lower tone (Weaver framing)
+2,HPA axis,NR3C2,-1,brake,high,MR sets basal engagement threshold (0 usable probes)
+2,HPA axis,CRHBP,-1,brake,high,sequesters CRH before pituitary
+2,HPA axis,HSD11B2,-1,brake,high,inactivates cortisol
+2,HPA axis,CRHR2,-1,brake,medium,stress-recovery arm opposing CRHR1
+2,HPA axis,UCN2,-1,brake,medium,CRHR2-selective; recovery phase
+2,HPA axis,UCN3,-1,brake,medium,most CRHR2-selective; stress offset
+2,HPA axis,ANXA1,-1,brake,medium,mediates rapid GC negative feedback
+2,HPA axis,FKBP5,1,brake-of-brake,high,lowers GR sensitivity; more FKBP5 = impaired feedback = higher tone
+2,HPA axis,BAG1,1,brake-of-brake,low,inhibits GR; same logic as FKBP5 (feedback impairment)
+2,HPA axis,FKBP4,-1,feedback-enabler,low,promotes GR translocation; opposite of FKBP5
+2,HPA axis,HSP90AA1,-1,feedback-enabler,low,GR chaperone; enables feedback
+2,HPA axis,STIP1,-1,feedback-enabler,low,GR chaperone assembly (HOP)
+2,HPA axis,PTGES3,-1,feedback-enabler,low,p23 chaperone; enables GR (0 usable probes)
+2,HPA axis,SGK1,0,readout,high,GC-induced reporter; marks GC action but does not drive tone
+2,HPA axis,TSC22D3,0,readout,high,GILZ; GC-induced anti-inflammatory readout
+2,HPA axis,DDIT4,0,readout,medium,REDD1; GC-induced mTOR inhibitor readout
+2,HPA axis,KLF9,0,readout,medium,GC-induced feedforward amplifier; readout of GC signalling
+2,HPA axis,ZBTB16,0,readout,medium,GC-responsive TF; developmental readout
+2,HPA axis,SERPINA6,0,ambiguous,medium,CBG shifts free fraction; sign on tone ambiguous
+2,HPA axis,PCSK2,-1,brake,low,diverts POMC away from ACTH branch
+1,Oxytocin/CICR,OXT,1,driver,high,the ligand
+1,Oxytocin/CICR,OXTR,1,driver,high,the receptor (0 usable probes in blood arm; check v3)
+1,Oxytocin/CICR,CD38,1,driver,high,cADPR production; drives CICR
+1,Oxytocin/CICR,RYR1,1,driver,high,CICR release channel
+1,Oxytocin/CICR,RYR2,1,driver,high,CICR release channel
+1,Oxytocin/CICR,RYR3,1,driver,high,CICR release channel
+1,Oxytocin/CICR,ITPR1,1,driver,medium,IP3R calcium release
+1,Oxytocin/CICR,ITPR3,1,driver,medium,IP3R calcium release
+1,Oxytocin/CICR,TRPM2,1,driver,medium,ADPR-gated Ca entry sustaining loop
+1,Oxytocin/CICR,TPCN2,1,driver,low,two-pore channel; NAADP-gated Ca release
+1,Oxytocin/CICR,CACNA1C,1,driver,medium,L-type VGCC entry
+1,Oxytocin/CICR,AVP,1,driver-adjacent,medium,vasopressin arm ligand
+1,Oxytocin/CICR,AVPR1A,1,driver-adjacent,medium,V1a social receptor
+1,Oxytocin/CICR,AVPR1B,1,driver-adjacent,low,V1b pituitary receptor
+1,Oxytocin/CICR,AVPR2,0,specificity-control,high,renal Gs receptor; deliberately included as negative control
+1,Oxytocin/CICR,ATP2A2,-1,brake,medium,SERCA refills ER; terminates cytosolic signal
+1,Oxytocin/CICR,ATP2A3,-1,brake,medium,SERCA pump
+1,Oxytocin/CICR,CASQ1,-1,buffer,low,ER Ca buffer
+1,Oxytocin/CICR,CASQ2,-1,buffer,low,ER Ca buffer
+1,Oxytocin/CICR,CALM1,1,transducer,low,Ca sensor
+1,Oxytocin/CICR,CALM3,1,transducer,low,Ca sensor
+1,Oxytocin/CICR,CAMK2D,1,transducer,low,Ca effector kinase
+1,Oxytocin/CICR,SIGMAR1,0,ambiguous,low,chaperone modulator
+8,Dopamine,TH,1,driver,high,rate-limiting synthesis
+8,Dopamine,DDC,1,driver,high,synthesis
+8,Dopamine,SLC18A2,1,driver,medium,VMAT2 vesicular packaging
+8,Dopamine,DRD1,1,transducer,high,D1 postsynaptic signalling
+8,Dopamine,DRD5,1,transducer,medium,D1-like
+8,Dopamine,DRD2,-1,opposing-transducer,high,Gi-coupled: lowers cAMP; presynaptic autoreceptor suppresses DA release - OPPOSITE of D1-like (PI correction 2026-08-12)
+8,Dopamine,DRD3,-1,opposing-transducer,medium,D2-like Gi-coupled autoreceptor arm
+8,Dopamine,DRD4,-1,opposing-transducer,medium,D2-like Gi-coupled
+8,Dopamine,PPP1R1B,1,transducer,high,DARPP-32 signal hub
+8,Dopamine,NR4A2,1,driver,high,Nurr1; DA neuron phenotype maintenance
+8,Dopamine,SLC6A3,-1,brake,high,DAT reuptake clears synaptic DA
+8,Dopamine,COMT,-1,brake,high,degrades DA
+8,Dopamine,ADORA1,-1,brake,medium,adenosine opposes DA signalling
+8,Dopamine,ADORA2A,-1,brake,high,A2A opposes D2
+8,Dopamine,PDE10A,-1,brake,medium,terminates cAMP signal
+8,Dopamine,RGS9,-1,brake,medium,terminates GPCR signal
+8,Dopamine,ANKK1,0,ambiguous,medium,TaqIA neighbour; function unclear
+8,Dopamine,DRD1B,0,ambiguous,low,placeholder if present
+10,Noradrenaline/SNS,TH,1,driver,high,synthesis (if in system)
+10,Noradrenaline/SNS,DBH,1,driver,high,DA->NE conversion
+10,Noradrenaline/SNS,PNMT,1,driver,medium,NE->E conversion
+10,Noradrenaline/SNS,CHGA,1,driver,medium,granule component; sympathetic output marker
+10,Noradrenaline/SNS,ADRB1,1,transducer,high,beta adrenergic signalling
+10,Noradrenaline/SNS,ADRB2,1,transducer,high,beta adrenergic signalling
+10,Noradrenaline/SNS,ADRB3,1,transducer,medium,beta adrenergic
+10,Noradrenaline/SNS,ADRA1A,1,transducer,medium,alpha1
+10,Noradrenaline/SNS,ADRA1B,1,transducer,medium,alpha1
+10,Noradrenaline/SNS,ADRA2A,-1,brake,high,presynaptic autoreceptor inhibits NE release
+10,Noradrenaline/SNS,ADRA2C,-1,brake,high,presynaptic autoreceptor
+10,Noradrenaline/SNS,SLC6A2,-1,brake,high,NET reuptake
+10,Noradrenaline/SNS,NPY,1,cotransmitter,medium,sympathetic cotransmitter
+10,Noradrenaline/SNS,NPY2R,-1,brake,medium,presynaptic Y2 autoreceptor
+12,Opioid/melanocortin,PENK,1,driver,high,enkephalin precursor
+12,Opioid/melanocortin,PDYN,1,driver,medium,dynorphin precursor (KOR arm)
+12,Opioid/melanocortin,OPRM1,1,transducer,high,mu receptor
+12,Opioid/melanocortin,OPRD1,1,transducer,high,delta receptor
+12,Opioid/melanocortin,OPRK1,1,transducer-with-caveat,medium,kappa; opioid signalling though hedonically opposite
+12,Opioid/melanocortin,OPRL1,0,ambiguous,medium,NOP receptor; anti-opioid actions reported
+12,Opioid/melanocortin,PNOC,0,ambiguous,medium,nociceptin precursor; anti-opioid arm
+12,Opioid/melanocortin,MME,-1,brake,high,neprilysin degrades enkephalins
+12,Opioid/melanocortin,MC1R,0,off-axis,medium,melanocortin arm; not opioid tone
+24,Immune/inflammation,TNF,1,driver,high,pro-inflammatory
+24,Immune/inflammation,IL6,1,driver,high,pro-inflammatory
+24,Immune/inflammation,IL1B,1,driver,high,pro-inflammatory
+24,Immune/inflammation,IL18,1,driver,medium,pro-inflammatory
+24,Immune/inflammation,IL12RB1,1,driver,medium,Th1 axis
+24,Immune/inflammation,IFNG,1,driver,high,Th1 effector
+24,Immune/inflammation,NFKB1,1,driver,high,master pro-inflammatory TF
+24,Immune/inflammation,CRP,1,driver,medium,acute phase
+24,Immune/inflammation,IL10,-1,brake,high,anti-inflammatory
+24,Immune/inflammation,TGFB1,-1,brake,medium,regulatory
+24,Immune/inflammation,FOXP3,-1,brake,high,Treg master TF
+24,Immune/inflammation,IL4,0,axis-dependent,medium,Th2; sign depends on inflammatory-axis definition
+24,Immune/inflammation,HLA-A,0,capacity,low,antigen presentation capacity; not tone
+24,Immune/inflammation,HLA-B,0,capacity,low,antigen presentation
+24,Immune/inflammation,HLA-C,0,capacity,low,antigen presentation
+24,Immune/inflammation,HLA-DPA1,0,capacity,low,class II presentation
+24,Immune/inflammation,HLA-DPB1,0,capacity,low,class II presentation
+24,Immune/inflammation,HLA-DQB2,0,capacity,low,class II presentation
+24,Immune/inflammation,HLA-DMB,0,capacity,low,class II peptide loading
+24,Immune/inflammation,HLA-F,0,capacity,low,non-classical
+24,Immune/inflammation,HLA-G,-1,brake,medium,tolerogenic non-classical class I
+24,Immune/inflammation,HLA-L,0,capacity,low,pseudogene

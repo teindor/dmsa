@@ -1,0 +1,69 @@
+system_id,module_id,module,gene
+1,1.1,Peptides,OXT
+1,1.1,Peptides,AVP
+1,1.1,Peptides,MAGEL2
+1,1.2,Receptors,OXTR
+1,1.2,Receptors,AVPR1A
+1,1.2,Receptors,AVPR1B
+1,1.2,Receptors,AVPR2
+1,1.3,Gq-PLC-IP3,GNAQ
+1,1.3,Gq-PLC-IP3,GNA11
+1,1.3,Gq-PLC-IP3,PLCB1
+1,1.3,Gq-PLC-IP3,PLCB4
+1,1.3,Gq-PLC-IP3,ITPR1
+1,1.3,Gq-PLC-IP3,ITPR2
+1,1.3,Gq-PLC-IP3,ITPR3
+1,1.4,Calcium store and release,RYR1
+1,1.4,Calcium store and release,RYR2
+1,1.4,Calcium store and release,RYR3
+1,1.4,Calcium store and release,ATP2A2
+1,1.4,Calcium store and release,ATP2A3
+1,1.4,Calcium store and release,CASQ1
+1,1.4,Calcium store and release,CASQ2
+1,1.4,Calcium store and release,TRDN
+1,1.4,Calcium store and release,FKBP1A
+1,1.4,Calcium store and release,FKBP1B
+1,1.4,Calcium store and release,STIM1
+1,1.4,Calcium store and release,ORAI1
+1,1.4,Calcium store and release,TPCN1
+1,1.4,Calcium store and release,TPCN2
+1,1.4,Calcium store and release,TRPM2
+1,1.4,Calcium store and release,CD38
+1,1.4,Calcium store and release,BST1
+1,1.4,Calcium store and release,ASPH
+1,1.4,Calcium store and release,SIGMAR1
+1,1.5,Calmodulin and CaMK effectors,CALM1
+1,1.5,Calmodulin and CaMK effectors,CALM2
+1,1.5,Calmodulin and CaMK effectors,CALM3
+1,1.5,Calmodulin and CaMK effectors,CAMK2A
+1,1.5,Calmodulin and CaMK effectors,CAMK2B
+1,1.5,Calmodulin and CaMK effectors,CAMK2D
+1,1.5,Calmodulin and CaMK effectors,NOS1
+1,1.5,Calmodulin and CaMK effectors,CACNA1C
+1,1.5,Calmodulin and CaMK effectors,CACNA1D
+2,2.1,H hypothalamic drive,CRH
+2,2.1,H hypothalamic drive,CRHBP
+2,2.1,H hypothalamic drive,CRHR2
+2,2.1,H hypothalamic drive,UCN
+2,2.1,H hypothalamic drive,UCN2
+2,2.1,H hypothalamic drive,UCN3
+2,2.2,P pituitary POMC processing,POMC
+2,2.2,P pituitary POMC processing,PCSK1
+2,2.2,P pituitary POMC processing,PCSK2
+2,2.3,A adrenal and cortisol availability,MC2R
+2,2.3,A adrenal and cortisol availability,MRAP
+2,2.3,A adrenal and cortisol availability,SERPINA6
+2,2.3,A adrenal and cortisol availability,HSD11B1
+2,2.3,A adrenal and cortisol availability,HSD11B2
+2,2.4,GR signalling and feedback,NR3C1
+2,2.4,GR signalling and feedback,FKBP4
+2,2.4,GR signalling and feedback,FKBP5
+2,2.4,GR signalling and feedback,HSP90AA1
+2,2.4,GR signalling and feedback,STIP1
+2,2.4,GR signalling and feedback,BAG1
+2,2.4,GR signalling and feedback,TSC22D3
+2,2.4,GR signalling and feedback,SGK1
+2,2.4,GR signalling and feedback,KLF9
+2,2.4,GR signalling and feedback,ZBTB16
+2,2.4,GR signalling and feedback,DDIT4
+2,2.4,GR signalling and feedback,ANXA1

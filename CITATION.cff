@@ -1,0 +1,40 @@
+cff-version: 1.2.0
+title: "dmsa: Directional Methylation Set Analysis"
+message: "If you use this software, please cite it."
+type: software
+authors:
+  - family-names: Ein-Dor
+    given-names: Tsachi
+    email: teindor@runi.ac.il
+    affiliation: "Reichman University"
+    orcid: "https://orcid.org/0000-0002-3078-7591"
+version: 1.20.1
+date-released: 2026-08-19
+license: MIT
+repository-code: "https://github.com/teindor/dmsa"
+abstract: >-
+  DMSA aligns probe-level DNA methylation effects to their predicted
+  consequence for gene expression before aggregating them, tests each unit
+  through three pre-specified lenses on one permutation stream, and names the
+  responsible gene inside level-local families with family-wise error control.
+keywords:
+  - DNA methylation
+  - gene set analysis
+  - epigenome-wide association
+  - multiple testing
+  - permutation inference
+# On acceptance, add the paper back as the preferred citation. Until then this
+# file cites only the software, which is the thing that actually exists - a
+# placeholder journal name baked into a public tag and a Zenodo DOI is worse
+# than no paper citation at all.
+#
+# preferred-citation:
+#   type: article
+#   title: "<the accepted title>"
+#   authors:
+#     - family-names: Ein-Dor
+#       given-names: Tsachi
+#       orcid: "https://orcid.org/0000-0002-3078-7591"
+#   year: 2026
+#   journal: "<the accepting journal>"
+#   doi: "<the article DOI>"

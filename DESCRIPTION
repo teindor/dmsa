@@ -1,0 +1,28 @@
+Package: dmsa
+Title: Directional Methylation Set Analysis
+Version: 1.20.1
+Authors@R: c(person("Tsachi", "Ein-Dor", role = c("aut", "cre"),
+    email = "teindor@runi.ac.il",
+    comment = c(ORCID = "0000-0002-3078-7591")))
+URL: https://github.com/teindor/dmsa
+BugReports: https://github.com/teindor/dmsa/issues
+Description: Aligns probe-level methylation effects to their predicted
+    effect on gene expression (via 'cpgdirection') and, for system-level
+    analysis, to each gene's curated polarity with respect to the system's
+    activation tone (e.g. NR3C1 opposes HPA-axis activation). Pools the
+    aligned coefficients with fixed-sign or expected-sign estimators and
+    reports coverage and activation/brake balance per set. Ships the
+    Project Alpha gene-system map, a gene-to-system polarity table carrying a
+    stated source and review flag on every row, and a curated
+    system > module > gene > probe selection cascade whose module labels carry
+    literature-audited evidence tiers and citations; genes without a polarity
+    entry must be specified by the user.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.0)
+Imports: stats, utils, grDevices, graphics, data.table
+Suggests: testthat (>= 3.0.0), cpgdirection, gt, lme4, lmerTest, MASS, nnet,
+    viridisLite, beepr, Gviz, GenomicRanges, IRanges, GenomicFeatures, ensembldb,
+    AnnotationDbi, AnnotationFilter
+Config/testthat/edition: 3
+RoxygenNote: 7.3.1

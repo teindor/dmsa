@@ -1,0 +1,11 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^README\.md$
+^REPRODUCE\.md$
+^CITATION\.cff$
+^\.github$
+^\.gitignore$
+^LICENSE\.md$
+^POLARITY_AUDIT\.md$
+^SELECTION_SETS\.md$
+^NEWS\.md$
