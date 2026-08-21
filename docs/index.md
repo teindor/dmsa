@@ -9,8 +9,9 @@ unit’s answer from that unit’s own probes alone.
 That last property is not incidental. Most set-based methylation engines
 compute a unit’s p-value partly from the other probes the analyst
 happened to load, so the same finding moves when the analysis set
-changes — a failure mode we name and measure as **p-dancing**. DMSA’s
-unit statistics are invariant to it.
+changes — a failure mode we name and measure as **p-dancing**
+([`dmsa_pdance()`](https://teindor.github.io/dmsa/reference/dmsa_pdance.md)).
+DMSA’s unit statistics are invariant to it.
 
 ------------------------------------------------------------------------
 
@@ -221,6 +222,8 @@ smaller sample. If you don’t, pay the premium.
 | function | purpose |
 |----|----|
 | [`dmsa_change()`](https://teindor.github.io/dmsa/reference/dmsa_change.md) | longitudinal two-wave mDMSA: time × S × E ≡ ΔS × E |
+| [`dmsa_pdance()`](https://teindor.github.io/dmsa/reference/dmsa_pdance.md) | set-selection sensitivity — engine-agnostic p-dancing diagnostic |
+| [`dmsa_pdance()`](https://teindor.github.io/dmsa/reference/dmsa_pdance.md) | set-selection sensitivity — engine-agnostic p-dancing diagnostic |
 | [`dmsa_scores()`](https://teindor.github.io/dmsa/reference/dmsa_scores.md) | aligned unit scores without inference |
 | [`dmsa_test()`](https://teindor.github.io/dmsa/reference/dmsa_test.md) | a single unit, one call |
 | [`dmsa_tree()`](https://teindor.github.io/dmsa/reference/dmsa_tree.md) | the level-local cascade on its own |

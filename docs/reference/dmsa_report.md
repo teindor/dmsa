@@ -55,7 +55,7 @@ fr <- dmsa_frame(dat, map = map, outcome = "anx", covariates = "cov1",
 r <- dmsa_report(fr)
 #> no curated polarity entries match the chosen systems - system-level scores weight every gene +1
 #> DMSA report written to:
-#>   /private/var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T/RtmpwVOFZ5/file62094a4cc88e
+#>   /private/var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T/RtmpFlko8C/file6d3c342b3118
 #>   0 figure(s), 0 table(s), summary.md
 r$results[, c("level", "unit", "n_probes", "p_omnibus")]
 #>               level     unit n_probes  p_omnibus

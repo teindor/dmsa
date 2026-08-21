@@ -29,6 +29,9 @@ The directional chain and the three lenses.
   : Three complementary lenses on the same family
 - [`dmsa_test()`](https://teindor.github.io/dmsa/reference/dmsa_test.md)
   : Fixed-sign or expected-sign DMSA pooled test
+- [`dmsa_pdance()`](https://teindor.github.io/dmsa/reference/dmsa_pdance.md)
+  : The p-dance test: does a finding's p-value survive a change of
+  analysis set?
 - [`dmsa_score()`](https://teindor.github.io/dmsa/reference/dmsa_score.md)
   : Subject-level aligned tone score
 - [`dmsa_scores()`](https://teindor.github.io/dmsa/reference/dmsa_scores.md)

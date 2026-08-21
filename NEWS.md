@@ -1,3 +1,19 @@
+# dmsa 0.99.1
+
+* **`dmsa_pdance()` is now part of the package.** The p-dance test - does a
+  finding's p-value move when the analyst changes which *other* probes are in
+  the analysis? - existed only as an analysis script behind the manuscript's
+  Figure 3, while the README advertised it as a function. It is now exported,
+  documented and tested, in both forms: `"dropout"` removes a random fraction
+  of the non-focal probes, `"addition"` adds probes from a reservoir outside
+  the set. The two move competitive and whole-set engines in opposite
+  directions, which is why running only one understates the problem.
+
+  It is engine-agnostic by construction: an engine is any function from a set
+  of probes to a p-value, so a competitor is tested by exactly the procedure
+  that tests DMSA. The focal unit's own probes are never perturbed, so any
+  movement is attributable to the analysis set rather than to the evidence.
+
 # dmsa 0.99.0
 
 Bioconductor submission version. No change to any estimate, permutation, or

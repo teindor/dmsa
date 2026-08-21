@@ -49,7 +49,7 @@
 
     <a class="navbar-brand me-2" href="index.html">dmsa</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.99.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.99.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -80,7 +80,7 @@
 <!-- badges: start -->
 
 <p><strong>DMSA asks a directional question of a set of CpG probes: does this gene’s — or this biological system’s — methylation move in the direction that raises or lowers its expression?</strong> It then names the gene responsible while paying the multiplicity toll, and it computes each unit’s answer from that unit’s own probes alone.</p>
-<p>That last property is not incidental. Most set-based methylation engines compute a unit’s p-value partly from the other probes the analyst happened to load, so the same finding moves when the analysis set changes — a failure mode we name and measure as <strong>p-dancing</strong>. DMSA’s unit statistics are invariant to it.</p>
+<p>That last property is not incidental. Most set-based methylation engines compute a unit’s p-value partly from the other probes the analyst happened to load, so the same finding moves when the analysis set changes — a failure mode we name and measure as <strong>p-dancing</strong> (<code><a href="reference/dmsa_pdance.html">dmsa_pdance()</a></code>). DMSA’s unit statistics are invariant to it.</p>
 <hr>
 <div class="section level2">
 <h2 id="what-dmsa-does">What DMSA does<a class="anchor" aria-label="anchor" href="#what-dmsa-does"></a>
@@ -214,6 +214,14 @@
 <tr>
 <td><code><a href="reference/dmsa_change.html">dmsa_change()</a></code></td>
 <td>longitudinal two-wave mDMSA: time × S × E ≡ ΔS × E</td>
+</tr>
+<tr>
+<td><code><a href="reference/dmsa_pdance.html">dmsa_pdance()</a></code></td>
+<td>set-selection sensitivity — engine-agnostic p-dancing diagnostic</td>
+</tr>
+<tr>
+<td><code><a href="reference/dmsa_pdance.html">dmsa_pdance()</a></code></td>
+<td>set-selection sensitivity — engine-agnostic p-dancing diagnostic</td>
 </tr>
 <tr>
 <td><code><a href="reference/dmsa_scores.html">dmsa_scores()</a></code></td>

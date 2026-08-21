@@ -31,7 +31,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dmsa</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.99.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.99.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -57,6 +57,13 @@
       <small>Source: <a href="https://github.com/teindor/dmsa/blob/HEAD/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.99.1" id="dmsa-0991">dmsa 0.99.1<a class="anchor" aria-label="anchor" href="#dmsa-0991"></a></h2>
+<ul><li>
+<p><strong><code><a href="../reference/dmsa_pdance.html">dmsa_pdance()</a></code> is now part of the package.</strong> The p-dance test - does a finding’s p-value move when the analyst changes which <em>other</em> probes are in the analysis? - existed only as an analysis script behind the manuscript’s Figure 3, while the README advertised it as a function. It is now exported, documented and tested, in both forms: <code>"dropout"</code> removes a random fraction of the non-focal probes, <code>"addition"</code> adds probes from a reservoir outside the set. The two move competitive and whole-set engines in opposite directions, which is why running only one understates the problem.</p>
+<p>It is engine-agnostic by construction: an engine is any function from a set of probes to a p-value, so a competitor is tested by exactly the procedure that tests DMSA. The focal unit’s own probes are never perturbed, so any movement is attributable to the analysis set rather than to the evidence.</p>
+</li>
+</ul></div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.99.0" id="dmsa-0990">dmsa 0.99.0<a class="anchor" aria-label="anchor" href="#dmsa-0990"></a></h2>
 <p>Bioconductor submission version. No change to any estimate, permutation, or correction; every number in the manuscript reproduces from v1.20.2, archived at <a href="https://doi.org/10.5281/zenodo.22042907" class="external-link">10.5281/zenodo.22042907</a>.</p>

@@ -68,12 +68,12 @@ and a gene column (`gene`, `symbol`, `gene_symbol`).
 ``` r
 f <- tempfile(fileext = ".csv")
 dmsa_reference_template(f)
-#> template written to /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpwVOFZ5/file620941b4f816.csv
+#> template written to /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpFlko8C/file6d3cf9bf7e4.csv
 #>   system + gene are required; module, w_g, anchor, role, confidence, source are optional.
 #>   w_g: +1 raises system activation, -1 opposes it, 0 off-axis; continuous values in [-1, 1] are allowed.
 #>   anchor: TRUE for the genes that DEFINE activation for that system.
 ref <- dmsa_reference_csv(f)
-#> dmsa reference: file620941b4f816.csv
+#> dmsa reference: file6d3cf9bf7e4.csv
 #>   8 genes across 2 systems, 6 modules
 #>   polarity: 8 gene-system pairs, continuous (6 activating, 2 braking, 0 off-axis)
 #>   anchors: user (2 genes)

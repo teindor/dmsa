@@ -52,7 +52,8 @@ reference:
     contents: [dmsa_se]
   - title: Alignment and testing
     desc: The directional chain and the three lenses.
-    contents: [dmsa_align, dmsa_triangulate, dmsa_test, dmsa_score, dmsa_scores,
+    contents: [dmsa_align, dmsa_triangulate, dmsa_test, dmsa_pdance,
+               dmsa_score, dmsa_scores,
                dmsa_relweights, dmsa_perm_pvalue, dmsa_omnibus]
   - title: Selection and hierarchy
     contents: [dmsa_sets, dmsa_select, dmsa_cascade, dmsa_systems, dmsa_levels,
