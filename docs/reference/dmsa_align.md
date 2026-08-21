@@ -7,11 +7,12 @@ Build the aligned sign s_j for a set of probes
 ``` r
 dmsa_align(
   direction,
-  genes,
+  genes = NULL,
   level = c("gene", "system"),
   polarity = "alpha",
   system_id = NULL,
-  missing_polarity = c("error", "zero", "drop")
+  missing_polarity = c("error", "zero", "drop"),
+  tissue = "blood"
 )
 ```
 
@@ -19,17 +20,25 @@ dmsa_align(
 
 - direction:
 
-  A data.frame from
+  Either a plain character vector of CpG identifiers, in which case the
+  direction calls and the gene mapping are taken from the map bundled
+  with dmsa (see
+  [`dmsa_directions`](https://teindor.github.io/dmsa/reference/dmsa_directions.md)),
+  or a table of calls you supply yourself. A supplied table may be the
+  output of
   [`cpgdirection::cpg_expression_direction()`](https://rdrr.io/pkg/cpgdirection/man/cpg_expression_direction.html)
-  (needs columns `cpg_id` or `input`, `best_direction`, and if available
-  `best_confidence`), OR a data.frame with columns `cpg`, `d` (+1/-1)
-  and optionally `p_plus` = P(d = +1).
+  (needs `cpg_id` or `input`, `best_direction`, and if available
+  `best_confidence`), or any data.frame with `cpg`, `d` (+1/-1) and
+  optionally `p_plus` = P(d = +1).
 
 - genes:
 
-  Character vector, same length as the probes in `direction`: the
-  set-membership gene of each probe (the panel's annotation, e.g. from
-  the column suffix).
+  The set-membership gene of each probe - which gene this probe is being
+  read against. Required, and the same length as the probes, when
+  `direction` is a table. Optional when `direction` is a character
+  vector of probe IDs: leave it `NULL` to take every gene the bundled
+  map maps each probe to, or supply one gene per probe to pin specific
+  pairs.
 
 - level:
 
@@ -55,6 +64,12 @@ dmsa_align(
   each, per protocol), `"zero"` (treat as off-axis, probe drops from the
   system pool but is reported), or `"drop"` (silently exclude).
 
+- tissue:
+
+  Which bundled direction layer to read when `direction` is a character
+  vector of probe IDs. Only `"blood"` ships at present; other tissues
+  live in `cpgdirection`.
+
 ## Value
 
 data.frame: probe, gene, d, p_plus, w_g, s (= d \* w_g at system level,
@@ -64,6 +79,27 @@ reason for every non-usable probe.
 ## Examples
 
 ``` r
+# The short way: probe IDs alone. Directions and gene mapping come from
+# the bundled map, so nothing has to be obtained first.
+al <- dmsa_align(c("cg00052046", "cg00176879", "cg00308631"))
+#> dmsa: 3 of 3 probes carry a call in the bundled blood map (100%), 5 probe-gene pairs [map 2026.08]
+al[, c("probe", "gene", "d", "s", "usable")]
+#>        probe          gene  d  s usable
+#> 1 cg00052046           AVP -1 -1   TRUE
+#> 2 cg00052046 UBOX5;FASTKD5 -1 -1   TRUE
+#> 3 cg00176879           AVP -1 -1   TRUE
+#> 4 cg00308631           AVP -1 -1   TRUE
+#> 5 cg00308631 UBOX5;FASTKD5 -1 -1   TRUE
+
+# Which map produced this alignment travels with it.
+attr(al, "direction_map")
+#> [1] "dmsa bundled blood map v2026.08 (from cpgdirection 2.3.0, 10.5281/zenodo.22024185)"
+
+# Pin each probe to one gene when the panel says which gene it belongs to.
+dmsa_align(c("cg00052046", "cg00176879"), genes = c("AVP", "AVP"))$s
+#> dmsa: 2 of 2 probes carry a call in the bundled blood map (100%), 2 probe-gene pairs [map 2026.08]
+#> [1] -1 -1
+
 # d is the CpG -> expression sign, w_g the gene -> system-tone sign.
 # A promoter CpG silences NR3C1 (d = -1) and GR is the HPA brake (w_g = -1),
 # so the probe votes for HIGHER axis tone: s = d * w_g = +1.

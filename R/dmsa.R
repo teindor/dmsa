@@ -47,14 +47,20 @@ alpha_polarity <- function() {
 
 #' Build the aligned sign s_j for a set of probes
 #'
-#' @param direction A data.frame from
-#'   \code{cpgdirection::cpg_expression_direction()} (needs columns
-#'   \code{cpg_id} or \code{input}, \code{best_direction}, and if available
-#'   \code{best_confidence}), OR a data.frame with columns \code{cpg},
+#' @param direction Either a plain character vector of CpG identifiers, in
+#'   which case the direction calls and the gene mapping are taken from the
+#'   map bundled with dmsa (see \code{\link{dmsa_directions}}), or a table of
+#'   calls you supply yourself. A supplied table may be the output of
+#'   \code{cpgdirection::cpg_expression_direction()} (needs \code{cpg_id} or
+#'   \code{input}, \code{best_direction}, and if available
+#'   \code{best_confidence}), or any data.frame with \code{cpg},
 #'   \code{d} (+1/-1) and optionally \code{p_plus} = P(d = +1).
-#' @param genes Character vector, same length as the probes in
-#'   \code{direction}: the set-membership gene of each probe (the panel's
-#'   annotation, e.g. from the column suffix).
+#' @param genes The set-membership gene of each probe - which gene this probe
+#'   is being read against. Required, and the same length as the probes, when
+#'   \code{direction} is a table. Optional when \code{direction} is a
+#'   character vector of probe IDs: leave it \code{NULL} to take every gene
+#'   the bundled map maps each probe to, or supply one gene per probe to pin
+#'   specific pairs.
 #' @param level \code{"gene"} (alignment = d_j only) or \code{"system"}
 #'   (alignment = d_j * w_g).
 #' @param polarity For \code{level = "system"}: where w_g comes from.
@@ -65,6 +71,9 @@ alpha_polarity <- function() {
 #' @param system_id Optional integer: restrict the bundled polarity lookup
 #'   to one Alpha system (a gene can carry different roles in different
 #'   systems).
+#' @param tissue Which bundled direction layer to read when \code{direction}
+#'   is a character vector of probe IDs. Only \code{"blood"} ships at
+#'   present; other tissues live in \code{cpgdirection}.
 #' @param missing_polarity What to do with a called probe whose gene has no
 #'   polarity entry: \code{"error"} (default - stop and list the genes so
 #'   the user can specify each, per protocol), \code{"zero"} (treat as
@@ -74,6 +83,17 @@ alpha_polarity <- function() {
 #'   level, d at gene level), p_s_plus = P(s = +1) (chained), usable
 #'   (logical), and reason for every non-usable probe.
 #' @examples
+#' # The short way: probe IDs alone. Directions and gene mapping come from
+#' # the bundled map, so nothing has to be obtained first.
+#' al <- dmsa_align(c("cg00052046", "cg00176879", "cg00308631"))
+#' al[, c("probe", "gene", "d", "s", "usable")]
+#'
+#' # Which map produced this alignment travels with it.
+#' attr(al, "direction_map")
+#'
+#' # Pin each probe to one gene when the panel says which gene it belongs to.
+#' dmsa_align(c("cg00052046", "cg00176879"), genes = c("AVP", "AVP"))$s
+#'
 #' # d is the CpG -> expression sign, w_g the gene -> system-tone sign.
 #' # A promoter CpG silences NR3C1 (d = -1) and GR is the HPA brake (w_g = -1),
 #' # so the probe votes for HIGHER axis tone: s = d * w_g = +1.
@@ -84,13 +104,39 @@ alpha_polarity <- function() {
 #' dmsa_align(dcall, genes = g, level = "gene")
 #' dmsa_align(dcall, genes = g, level = "system", polarity = pol)
 #' @export
-dmsa_align <- function(direction, genes,
+dmsa_align <- function(direction, genes = NULL,
                        level = c("gene", "system"),
                        polarity = "alpha",
                        system_id = NULL,
-                       missing_polarity = c("error", "zero", "drop")) {
+                       missing_polarity = c("error", "zero", "drop"),
+                       tissue = "blood") {
   level <- match.arg(level)
   missing_polarity <- match.arg(missing_polarity)
+
+  ## -- probe IDs alone: take the calls from the bundled map ---------------
+  ## The commonest thing a user has after normalising is a set of probe
+  ## names and nothing else. Requiring them to go and find a direction
+  ## resource first is the barrier this branch removes.
+  map_meta <- NULL
+  if (is.character(direction) && is.null(dim(direction))) {
+    asked <- unique(as.character(direction))
+    got <- dmsa_directions(probes = as.character(direction),
+                           genes = genes, tissue = tissue)
+    map_meta <- attr(got, "dmsa_direction_map")
+    covered <- length(intersect(asked, got$probe))
+    if (!nrow(got))
+      stop("none of the ", length(asked), " probe(s) carry a direction call ",
+           "in the bundled ", tissue, " map. Supply your own direction table, ",
+           "or see cpgdirection for other tissues and the full resource.",
+           call. = FALSE)
+    message(sprintf(
+      "dmsa: %d of %d probes carry a call in the bundled %s map (%.0f%%), %d probe-gene pairs [map %s]",
+      covered, length(asked), tissue, 100 * covered / length(asked),
+      nrow(got), map_meta$version))
+    genes <- got$gene
+    direction <- got[, c("probe", "d", "p_plus")]
+    names(direction)[1] <- "cpg_id"
+  }
 
   ## -- normalise the direction input ------------------------------------
   dd <- as.data.frame(direction)
@@ -110,6 +156,10 @@ dmsa_align <- function(direction, genes,
   } else {
     out$p_plus <- ifelse(is.na(out$d), NA_real_, ifelse(out$d > 0, 1, 0))
   }
+  if (is.null(genes))
+    stop("`genes` is required when `direction` is a table. Pass a character ",
+         "vector of probe IDs instead and dmsa will take both the genes and ",
+         "the direction calls from the bundled map.", call. = FALSE)
   if (length(genes) != nrow(out))
     stop("genes must have one entry per probe row (got ", length(genes),
          " for ", nrow(out), " probes)")
@@ -168,6 +218,13 @@ dmsa_align <- function(direction, genes,
   out$reason <- ifelse(is.na(out$d), "no_direction_call",
                 ifelse(!is.na(out$w_g) & out$w_g == 0, "off_axis_gene",
                 ifelse(is.na(out$s), "no_polarity", "")))
+  ## record which direction map produced this alignment. A finding that moved
+  ## because the annotation moved is the failure this package exists to name,
+  ## so the provenance travels with the result rather than being remembered.
+  attr(out, "direction_map") <- if (!is.null(map_meta))
+    sprintf("dmsa bundled %s map v%s (from %s, %s)", map_meta$tissue,
+            map_meta$version, map_meta$source, map_meta$source_doi)
+  else "user-supplied direction table"
   class(out) <- c("dmsa_alignment", class(out))
   out
 }

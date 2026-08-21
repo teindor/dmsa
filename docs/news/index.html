@@ -31,7 +31,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dmsa</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.99.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.99.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -57,6 +57,15 @@
       <small>Source: <a href="https://github.com/teindor/dmsa/blob/HEAD/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="pkg-version" data-toc-text="0.99.2" id="dmsa-0992">dmsa 0.99.2<a class="anchor" aria-label="anchor" href="#dmsa-0992"></a></h2>
+<ul><li>
+<p><strong>Direction calls now ship with the package.</strong> <code><a href="../reference/dmsa_align.html">dmsa_align()</a></code> accepts a plain character vector of CpG identifiers and takes both the direction calls and the probe-to-gene mapping from a bundled map, so a user who has just finished normalising can align without obtaining a direction resource first. That round trip was the largest barrier between a normalised matrix and a DMSA result, and it is now gone for the common case.</p>
+<p>The bundled layer is blood, restricted to probe-gene pairs carrying an actual call: 488,204 pairs over 237,761 probes and 5,376 genes, in 1.3 MB. About seven in ten rows of the full table abstain, and an abstention cannot be aligned to, which is why the reduction costs nothing DMSA could have used. Other tissues, the brain bridge, the SMR layer and the full 3.1M-pair table remain in <code>cpgdirection</code> (), which stays the complete resource. Supplying your own table works exactly as before.</p>
+</li>
+<li><p><strong><code><a href="../reference/dmsa_directions.html">dmsa_directions()</a></code></strong> exposes the bundled map directly, for checking what fraction of a probe set carries a call before committing to an analysis.</p></li>
+<li><p><strong>Every alignment records which direction map produced it</strong>, in the <code>"direction_map"</code> attribute. Annotation drift silently changes enrichment results, and a direction map is an annotation; a DMSA finding that moved because the map moved would be the failure this package exists to name. The map is versioned and the version travels with the result.</p></li>
+</ul></div>
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.99.1" id="dmsa-0991">dmsa 0.99.1<a class="anchor" aria-label="anchor" href="#dmsa-0991"></a></h2>
 <ul><li>

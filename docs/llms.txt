@@ -307,6 +307,8 @@ The directional chain and the three lenses.
 
 - [`dmsa_align()`](https://teindor.github.io/dmsa/reference/dmsa_align.md)
   : Build the aligned sign s_j for a set of probes
+- [`dmsa_directions()`](https://teindor.github.io/dmsa/reference/dmsa_directions.md)
+  : The direction calls DMSA ships with
 - [`dmsa_triangulate()`](https://teindor.github.io/dmsa/reference/dmsa_triangulate.md)
   : Three complementary lenses on the same family
 - [`dmsa_test()`](https://teindor.github.io/dmsa/reference/dmsa_test.md)

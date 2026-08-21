@@ -1,3 +1,29 @@
+# dmsa 0.99.2
+
+* **Direction calls now ship with the package.** `dmsa_align()` accepts a plain
+  character vector of CpG identifiers and takes both the direction calls and
+  the probe-to-gene mapping from a bundled map, so a user who has just finished
+  normalising can align without obtaining a direction resource first. That
+  round trip was the largest barrier between a normalised matrix and a DMSA
+  result, and it is now gone for the common case.
+
+  The bundled layer is blood, restricted to probe-gene pairs carrying an actual
+  call: 488,204 pairs over 237,761 probes and 5,376 genes, in 1.3 MB. About
+  seven in ten rows of the full table abstain, and an abstention cannot be
+  aligned to, which is why the reduction costs nothing DMSA could have used.
+  Other tissues, the brain bridge, the SMR layer and the full 3.1M-pair table
+  remain in `cpgdirection` (\doi{10.5281/zenodo.22024185}), which stays the
+  complete resource. Supplying your own table works exactly as before.
+
+* **`dmsa_directions()`** exposes the bundled map directly, for checking what
+  fraction of a probe set carries a call before committing to an analysis.
+
+* **Every alignment records which direction map produced it**, in the
+  `"direction_map"` attribute. Annotation drift silently changes enrichment
+  results, and a direction map is an annotation; a DMSA finding that moved
+  because the map moved would be the failure this package exists to name. The
+  map is versioned and the version travels with the result.
+
 # dmsa 0.99.1
 
 * **`dmsa_pdance()` is now part of the package.** The p-dance test - does a

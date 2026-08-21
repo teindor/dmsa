@@ -46,7 +46,7 @@ consumes.
 ``` r
 f <- tempfile(fileext = ".R")
 dmsa_probe_annotation_template(f, array = "EPIC")
-#> wrote /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpFlko8C/file6d3c7d86b74f.R - run it once, then join probe_coords.csv to your probes. Lighter: dmsa_probe_coords(), or skip coordinates entirely.
+#> wrote /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpUh53Rl/file766433461c24.R - run it once, then join probe_coords.csv to your probes. Lighter: dmsa_probe_coords(), or skip coordinates entirely.
 ## the script is not run here: it installs and queries the minfi annotation
 ## packages. dmsa_probe_coords() does the same job from a plain manifest.
 head(readLines(f), 5)

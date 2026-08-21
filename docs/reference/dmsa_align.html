@@ -31,7 +31,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">dmsa</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.99.1</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.99.2</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -66,11 +66,12 @@
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">dmsa_align</span><span class="op">(</span></span>
 <span>  <span class="va">direction</span>,</span>
-<span>  <span class="va">genes</span>,</span>
+<span>  genes <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  level <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"gene"</span>, <span class="st">"system"</span><span class="op">)</span>,</span>
 <span>  polarity <span class="op">=</span> <span class="st">"alpha"</span>,</span>
 <span>  system_id <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  missing_polarity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"error"</span>, <span class="st">"zero"</span>, <span class="st">"drop"</span><span class="op">)</span></span>
+<span>  missing_polarity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"error"</span>, <span class="st">"zero"</span>, <span class="st">"drop"</span><span class="op">)</span>,</span>
+<span>  tissue <span class="op">=</span> <span class="st">"blood"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -79,17 +80,23 @@
 
 
 <dl><dt id="arg-direction">direction<a class="anchor" aria-label="anchor" href="#arg-direction"></a></dt>
-<dd><p>A data.frame from
-<code><a href="https://rdrr.io/pkg/cpgdirection/man/cpg_expression_direction.html" class="external-link">cpgdirection::cpg_expression_direction()</a></code> (needs columns
-<code>cpg_id</code> or <code>input</code>, <code>best_direction</code>, and if available
-<code>best_confidence</code>), OR a data.frame with columns <code>cpg</code>,
+<dd><p>Either a plain character vector of CpG identifiers, in
+which case the direction calls and the gene mapping are taken from the
+map bundled with dmsa (see <code><a href="dmsa_directions.html">dmsa_directions</a></code>), or a table of
+calls you supply yourself. A supplied table may be the output of
+<code><a href="https://rdrr.io/pkg/cpgdirection/man/cpg_expression_direction.html" class="external-link">cpgdirection::cpg_expression_direction()</a></code> (needs <code>cpg_id</code> or
+<code>input</code>, <code>best_direction</code>, and if available
+<code>best_confidence</code>), or any data.frame with <code>cpg</code>,
 <code>d</code> (+1/-1) and optionally <code>p_plus</code> = P(d = +1).</p></dd>
 
 
 <dt id="arg-genes">genes<a class="anchor" aria-label="anchor" href="#arg-genes"></a></dt>
-<dd><p>Character vector, same length as the probes in
-<code>direction</code>: the set-membership gene of each probe (the panel's
-annotation, e.g. from the column suffix).</p></dd>
+<dd><p>The set-membership gene of each probe - which gene this probe
+is being read against. Required, and the same length as the probes, when
+<code>direction</code> is a table. Optional when <code>direction</code> is a
+character vector of probe IDs: leave it <code>NULL</code> to take every gene
+the bundled map maps each probe to, or supply one gene per probe to pin
+specific pairs.</p></dd>
 
 
 <dt id="arg-level">level<a class="anchor" aria-label="anchor" href="#arg-level"></a></dt>
@@ -118,6 +125,12 @@ the user can specify each, per protocol), <code>"zero"</code> (treat as
 off-axis, probe drops from the system pool but is reported), or
 <code>"drop"</code> (silently exclude).</p></dd>
 
+
+<dt id="arg-tissue">tissue<a class="anchor" aria-label="anchor" href="#arg-tissue"></a></dt>
+<dd><p>Which bundled direction layer to read when <code>direction</code>
+is a character vector of probe IDs. Only <code>"blood"</code> ships at
+present; other tissues live in <code>cpgdirection</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -128,7 +141,28 @@ off-axis, probe drops from the system pool but is reported), or
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># d is the CpG -&gt; expression sign, w_g the gene -&gt; system-tone sign.</span></span></span>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># The short way: probe IDs alone. Directions and gene mapping come from</span></span></span>
+<span class="r-in"><span><span class="co"># the bundled map, so nothing has to be obtained first.</span></span></span>
+<span class="r-in"><span><span class="va">al</span> <span class="op">&lt;-</span> <span class="fu">dmsa_align</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cg00052046"</span>, <span class="st">"cg00176879"</span>, <span class="st">"cg00308631"</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> dmsa: 3 of 3 probes carry a call in the bundled blood map (100%), 5 probe-gene pairs [map 2026.08]</span>
+<span class="r-in"><span><span class="va">al</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"probe"</span>, <span class="st">"gene"</span>, <span class="st">"d"</span>, <span class="st">"s"</span>, <span class="st">"usable"</span><span class="op">)</span><span class="op">]</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>        probe          gene  d  s usable</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 cg00052046           AVP -1 -1   TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 cg00052046 UBOX5;FASTKD5 -1 -1   TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3 cg00176879           AVP -1 -1   TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4 cg00308631           AVP -1 -1   TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5 cg00308631 UBOX5;FASTKD5 -1 -1   TRUE</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Which map produced this alignment travels with it.</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">al</span>, <span class="st">"direction_map"</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "dmsa bundled blood map v2026.08 (from cpgdirection 2.3.0, 10.5281/zenodo.22024185)"</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># Pin each probe to one gene when the panel says which gene it belongs to.</span></span></span>
+<span class="r-in"><span><span class="fu">dmsa_align</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"cg00052046"</span>, <span class="st">"cg00176879"</span><span class="op">)</span>, genes <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"AVP"</span>, <span class="st">"AVP"</span><span class="op">)</span><span class="op">)</span><span class="op">$</span><span class="va">s</span></span></span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> dmsa: 2 of 2 probes carry a call in the bundled blood map (100%), 2 probe-gene pairs [map 2026.08]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] -1 -1</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># d is the CpG -&gt; expression sign, w_g the gene -&gt; system-tone sign.</span></span></span>
 <span class="r-in"><span><span class="co"># A promoter CpG silences NR3C1 (d = -1) and GR is the HPA brake (w_g = -1),</span></span></span>
 <span class="r-in"><span><span class="co"># so the probe votes for HIGHER axis tone: s = d * w_g = +1.</span></span></span>
 <span class="r-in"><span><span class="va">g</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"CRH"</span>, <span class="st">"NR3C1"</span><span class="op">)</span></span></span>
