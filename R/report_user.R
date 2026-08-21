@@ -616,6 +616,52 @@
   list(lines = ls, cex = min_cex)
 }
 
+## ---- the title block -------------------------------------------------------
+## Size the top margin from the text that will go in it, instead of guessing.
+##
+## The module figure fixed mar[3] at 4.0 lines and drew the first of its
+## wrapped title lines at line 4.2. So the moment a title needed three lines,
+## line ONE was drawn off the top of the device. The figure still looked
+## finished, because what survived - "... level, three lenses, maxT within each
+## system" - reads like a title. What went missing was the outcome name, the
+## one part a reader cannot reconstruct from the rest of the panel.
+##
+## Measuring needs a graphics context, and setting the margin has to happen
+## before the plot. Both are satisfied by opening the frame with plot.new(),
+## measuring, then re-setting par() with new = TRUE so the caller's plot()
+## reuses that same page rather than starting a second one.
+##
+## Only mar[3] moves, and the measurement depends on mar[2] and mar[4] alone,
+## so there is no circularity between the two steps.
+.rp_head <- function(mar, ttl, sub, ttl_cex = .85, sub_cex = .55, pad = 1.0) {
+  graphics::par(mar = mar)
+  graphics::plot.new()
+  ## mtext(side = 3, adj = 0) starts at the left edge of the plot region and is
+  ## free to run on into the right margin, so the usable width is the plot
+  ## region PLUS that margin, less a hair so it never touches the device edge.
+  w <- graphics::par("pin")[1] + graphics::par("mai")[4] - 0.08
+  tf <- .rp_fit(ttl, cex = ttl_cex, width = w)
+  sf <- .rp_fit(sub, cex = sub_cex, width = w, max_lines = 6L)
+  sub_at <- if (length(sf$lines))
+    0.5 + (length(sf$lines) - seq_along(sf$lines)) * 0.75 else numeric(0)
+  base <- if (length(sub_at)) max(sub_at) + 1.1 else 0.6
+  ttl_at <- base + (length(tf$lines) - seq_along(tf$lines)) * 1.0
+  top <- if (length(ttl_at)) max(ttl_at) + pad else mar[3]
+  graphics::par(mar = c(mar[1], mar[2], max(mar[3], top), mar[4]), new = TRUE)
+  ## The caller draws its plot, then calls draw(). cex comes from .rp_fit, not
+  ## from the caller: a title that had to shrink to fit must be DRAWN at the
+  ## size it was measured at, or the fitting was for nothing. Both callers used
+  ## to take $lines and then hardcode cex = .85, which is exactly that bug.
+  function() {
+    for (k in seq_along(tf$lines))
+      graphics::mtext(tf$lines[k], side = 3, line = ttl_at[k], adj = 0,
+                      font = 2, cex = tf$cex)
+    for (k in seq_along(sf$lines))
+      graphics::mtext(sf$lines[k], side = 3, line = sub_at[k], adj = 0,
+                      cex = sf$cex, col = "grey35")
+  }
+}
+
 ## TRUE if every line fits - used by the battery to assert no figure overflows.
 .rp_text_fits <- function(txt, cex, width = NULL) {
   if (is.null(width)) width <- graphics::par("din")[1] - 0.5
@@ -733,7 +779,15 @@
                 height = max(3.4, 0.30 * nrow(r) + 1.9))
   on.exit(grDevices::dev.off(), add = TRUE)
   n <- nrow(r); yy <- rev(seq_len(n))
-  graphics::par(mar = c(4.2, 17, 4.0, 6.5))
+  ## Title and subtitle are measured first and the top margin sized to hold
+  ## them; head() draws them once the panel is up.
+  ttl <- sprintf("%s - module level, three lenses, %s within each system",
+                 .lab(frame, oc), frame$correction)
+  sub <- paste("Each block is one family: a module is corrected only against",
+               "the other modules of its own system. Right margin: evidence",
+               "tier for the module's DEFINITION, then probe count.",
+               "Bold = survives.")
+  head <- .rp_head(c(4.2, 17, 4.0, 6.5), ttl, sub)
   graphics::plot(NA, xlim = c(0.002, 1.3), ylim = c(.4, n + .6), log = "x",
                  axes = FALSE, xlab = "", ylab = "")
   at <- c(.005, .01, .02, .05, .1, .2, .5, 1)
@@ -769,20 +823,7 @@
                   side = 4, at = yy, las = 1, line = .4, cex = .5,
                   col = ifelse(is.na(tier) | tier == "High", "grey40",
                                "firebrick"))
-  ttl <- sprintf("%s - module level, three lenses, %s within each system",
-                 .lab(frame, oc), frame$correction)
-  wrapped <- .rp_fit(ttl, cex = .85, width = graphics::par("pin")[1])$lines
-  for (k in seq_along(wrapped))
-    graphics::mtext(wrapped[k], side = 3,
-                    line = 2.2 + (length(wrapped) - k) * 1.0,
-                    adj = 0, font = 2, cex = .85)
-  sub <- strwrap(paste("Each block is one family: a module is corrected only",
-                       "against the other modules of its own system. Right",
-                       "margin: evidence tier for the module's DEFINITION,",
-                       "then probe count. Bold = survives."), width = 88)
-  for (k in seq_along(sub))
-    graphics::mtext(sub[k], side = 3, line = 1.3 - (k - 1) * .75, adj = 0,
-                    cex = .55, col = "grey35")
+  head()
   graphics::mtext("family-adjusted p", side = 1, line = 2.4, cex = .7)
   graphics::legend("bottomleft", bty = "n", cex = .6, pch = 19,
                    col = c(COH, CMP, DIF),
@@ -800,7 +841,14 @@
                 height = max(3.2, 0.24 * nrow(r) + 1.6))
   on.exit(grDevices::dev.off(), add = TRUE)
   n <- nrow(r); yy <- rev(seq_len(n))
-  graphics::par(mar = c(4.2, 11, 5.2, 5.5))
+  ## Outcome names are the user's own column names and can be long -
+  ## "Attachment_Anxiety_General_T1" already overruns the device. Measure the
+  ## title, size the top margin to what was measured, and draw after the panel.
+  ttl <- sprintf("%s - all units, three lenses, %s within family",
+                 .lab(frame, oc), frame$correction)
+  sub <- paste("filled: coherence / composite / diffuse (top to bottom),",
+               "family-adjusted. Bold unit = survives.")
+  head <- .rp_head(c(4.2, 11, 5.2, 5.5), ttl, sub, sub_cex = .6)
   graphics::plot(NA, xlim = c(0.002, 1.3), ylim = c(.4, n + .6), log = "x",
                  yaxt = "n", xaxt = "n", xlab = "", ylab = "", bty = "n")
   graphics::abline(v = frame$alpha, col = "grey55", lty = 2)
@@ -820,19 +868,7 @@
   if (length(sel))
     graphics::text(pmin(1.25, exp(log(pmin(r$p_omnibus[sel], 1)) )), yy[sel],
                    labels = "", cex = .5)
-  ## Outcome names are the user's column names and can be long -
-  ## "Attachment_Anxiety_General_T1" already overruns the device. Wrap to the
-  ## panel width instead of letting the title run off the right edge, and stack
-  ## upward so the subtitle keeps its place.
-  ttl <- sprintf("%s - all units, three lenses, %s within family",
-                 .lab(frame, oc), frame$correction)
-  wrapped <- .rp_fit(ttl, cex = .85, width = graphics::par("pin")[1])$lines
-  for (k in seq_along(wrapped))
-    graphics::mtext(wrapped[k], side = 3,
-                    line = 1.8 + (length(wrapped) - k) * 1.0,
-                    adj = 0, font = 2, cex = .85)
-  graphics::mtext("filled: coherence / composite / diffuse (top to bottom), family-adjusted. Bold unit = survives.",
-                  side = 3, line = .7, adj = 0, cex = .6, col = "grey35")
+  head()
   graphics::mtext("family-adjusted p", side = 1, line = 2.4, cex = .7)
   graphics::legend("bottomleft", bty = "n", cex = .6, pch = 19,
                    col = c(COH, CMP, DIF),
@@ -883,6 +919,7 @@
   if (is.data.frame(gm) && "gene" %in% names(gm))
     gm <- gm[gm$gene == gene, , drop = FALSE]
   tryCatch(dmsa_plot_locus(pr, gene = gene, gene_model = gm,
+                           context = .lab(frame, oc),
                            file = paste0(file, ".", frame$plot_type)),
            error = function(e)
              message("locus panel for ", gene, " skipped: ",

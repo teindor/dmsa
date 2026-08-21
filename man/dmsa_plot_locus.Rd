@@ -16,6 +16,7 @@ dmsa_plot_locus(
   order_by = c("auto", "pos", "region", "given"),
   gene_model = NULL,
   transcripts = c("canonical", "all"),
+  context = "",
   file = NULL,
   width = 1800,
   height = NULL,
@@ -61,6 +62,11 @@ rather than drawn.}
 \item{transcripts}{\code{"canonical"} draws the annotation's own canonical
 transcript and names it under the axis; \code{"all"} stacks every
 transcript in the model, one lane each.}
+
+\item{context}{One line of context drawn under the title - in a DMSA report
+this is the outcome the effects belong to. Without it the panel names a
+gene and a chromosome but never says what strip C's effects are effects
+OF, which is not recoverable from the figure. Empty string draws nothing.}
 
 \item{file}{Optional png path.}
 

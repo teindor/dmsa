@@ -409,6 +409,25 @@
 #'   degrees of freedom and removes the leverage-1 rows. Any other character
 #'   string names the column to use. The before/after contracts forbid chip and
 #'   override this argument.
+#' @param chip_effect how the chip factor enters the model, once \code{chip}
+#'   has named it. \code{"random"} (default, and what the Alpha covariate
+#'   contract specifies) takes chip out of the fixed design and fits it as a
+#'   one-way random intercept, \code{(1 | chip)}, by REML quasi-demeaning: a
+#'   median of about 16 effective degrees of freedom on the parent build, and
+#'   zero on the probes where the chip variance is estimated as nil.
+#'   \code{"fixed"} restores the pre-1.18.0 behaviour and enters chip as a
+#'   fixed factor, at one degree of freedom per chip beyond the first.
+#'   \code{"none"} drops the batch adjustment altogether, whatever
+#'   \code{chip} says. Validity does not rest on the variance component being
+#'   right: the permutation null is computed under the same transform, so the
+#'   random-intercept fit moves power, not type-I error.
+#' @param outcome_levels Optional length-2 character vector naming the two
+#'   levels of a two-level outcome, e.g. \code{c("T1", "T4")} or
+#'   \code{c("female", "male")}. Used only in the written report, so a
+#'   sentence can say which level is which instead of falling back to
+#'   \code{outcome = 0} / \code{outcome = 1}. \code{NULL} (default) uses
+#'   that fallback. Purely cosmetic: no level name reaches the model, the
+#'   permutation or the family-wise correction.
 #' @param moderation,mod,mod2 moderation switch and moderator column(s); see
 #'   the layout note above.
 #' @param outcome_label,predictor_labels,mod_label,mod2_label Optional display

@@ -8,17 +8,14 @@ authors:
     email: teindor@runi.ac.il
     affiliation: "Reichman University"
     orcid: "https://orcid.org/0000-0002-3078-7591"
-version: 1.20.1
-date-released: 2026-08-19
+version: 1.20.2
+date-released: 2026-08-21
 license: MIT
 repository-code: "https://github.com/teindor/dmsa"
 identifiers:
   - type: doi
-    value: "10.5281/zenodo.XXXXXXX"
+    value: "10.5281/zenodo.22023957"
     description: "Concept DOI - resolves to the latest release. Cite this one."
-  - type: doi
-    value: "10.5281/zenodo.22023958"
-    description: "Version DOI - this release (1.20.1) specifically."
 abstract: >-
   DMSA aligns probe-level DNA methylation effects to their predicted
   consequence for gene expression before aggregating them, tests each unit

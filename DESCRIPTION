@@ -1,6 +1,6 @@
 Package: dmsa
 Title: Directional Methylation Set Analysis
-Version: 1.20.1
+Version: 1.20.2
 Authors@R: c(person("Tsachi", "Ein-Dor", role = c("aut", "cre"),
     email = "teindor@runi.ac.il",
     comment = c(ORCID = "0000-0002-3078-7591")))
@@ -25,4 +25,4 @@ Suggests: testthat (>= 3.0.0), cpgdirection, gt, lme4, lmerTest, MASS, nnet,
     viridisLite, beepr, Gviz, GenomicRanges, IRanges, GenomicFeatures, ensembldb,
     AnnotationDbi, AnnotationFilter
 Config/testthat/edition: 3
-RoxygenNote: 7.3.1
+Config/roxygen2/version: 8.1.0

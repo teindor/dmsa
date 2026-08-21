@@ -213,6 +213,32 @@ dmsa_probe_annotation_template <- function(path = "get_probe_coords.R",
   invisible(path)
 }
 
+## The locus title, drawn as mtext rather than main= so a second line can sit
+## under it.
+##
+## Strip C plots a beta per CpG on an axis labelled "raises / lowers expression
+## tone". That says what the SIGN means. It does not say what the effect is an
+## effect of - and "AVP   chr20" does not either. Reading the figure without
+## the outcome is guessing, and a figure that goes into a paper cannot ask its
+## reader to guess.
+.locus_title <- function(gene, chrom, context = "") {
+  ttl <- paste0(gene, if (!is.na(chrom) && nzchar(as.character(chrom)))
+                        paste0("   chr", chrom) else "")
+  two <- length(context) == 1L && !is.na(context) && nzchar(context)
+  graphics::mtext(ttl, side = 3, line = if (two) 1.45 else 0.75,
+                  cex = 1.0, font = 2)
+  if (!two) return(invisible(NULL))
+  ## Shrink rather than clip: an outcome label is the user's own column name
+  ## or whatever they passed to labels =, and can be any length.
+  cx <- 0.68
+  while (cx > 0.40 &&
+         graphics::strwidth(context, units = "inches", cex = cx) >
+           graphics::par("din")[1] - 0.4)
+    cx <- round(cx - 0.04, 2)
+  graphics::mtext(context, side = 3, line = 0.45, cex = cx, col = "grey30")
+  invisible(NULL)
+}
+
 #' Locus figure: chromosome, gene with CpG lollipops, and per-CpG effects
 #'
 #' Genomic coordinates are optional. Supply \code{pos} and the CpGs are placed
@@ -250,6 +276,10 @@ dmsa_probe_annotation_template <- function(path = "get_probe_coords.R",
 #' @param transcripts \code{"canonical"} draws the annotation's own canonical
 #'   transcript and names it under the axis; \code{"all"} stacks every
 #'   transcript in the model, one lane each.
+#' @param context One line of context drawn under the title - in a DMSA report
+#'   this is the outcome the effects belong to. Without it the panel names a
+#'   gene and a chromosome but never says what strip C's effects are effects
+#'   OF, which is not recoverable from the figure. Empty string draws nothing.
 #' @param file Optional png path.
 #' @param width,height,res png dimensions. \code{height = NULL} scales to the
 #'   number of strips and probes.
@@ -266,6 +296,7 @@ dmsa_plot_locus <- function(probes, gene = "", chrom = NA,
                             order_by = c("auto", "pos", "region", "given"),
                             gene_model = NULL,
                             transcripts = c("canonical", "all"),
+                            context = "",
                             file = NULL, width = 1800, height = NULL,
                             res = 190) {
   invert <- match.arg(invert); order_by <- match.arg(order_by)
@@ -464,8 +495,8 @@ dmsa_plot_locus <- function(probes, gene = "", chrom = NA,
   if (draw_A) {
     graphics::par(mar = c(1.4, 7.0, 3.0, 2.4))
     plot(NA, xlim = c(0, chrom_length), ylim = c(0, 1), axes = FALSE,
-         xlab = "", ylab = "", main = paste0(gene, "   chr", chrom),
-         cex.main = 1.0)
+         xlab = "", ylab = "", main = "")
+    .locus_title(gene, chrom, context)
     graphics::rect(0, .3, chrom_length, .7, col = "grey93", border = "grey55",
                    lwd = 1.2)
     mid <- (gene_start + gene_end) / 2
@@ -497,10 +528,8 @@ dmsa_plot_locus <- function(probes, gene = "", chrom = NA,
     if (has_reg) -.42 else -.24
   plot(NA, xlim = c(gene_start, gene_end),
        ylim = c(min(y_bot, if (has_reg) -.42 else -.24), 1.30), axes = FALSE,
-       xlab = "", ylab = "",
-       main = if (draw_A) "" else
-         paste0(gene, if (!is.na(chrom)) paste0("   chr", chrom) else ""),
-       cex.main = 1.0)
+       xlab = "", ylab = "", main = "")
+  if (!draw_A) .locus_title(gene, chrom, context)
   if (!is.null(gene_model)) {
     .locus_gene_track(gene_model, y0 = y_bot, y1 = .02, col = "grey38")
   } else {

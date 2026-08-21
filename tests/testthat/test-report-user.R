@@ -161,3 +161,63 @@ test_that("the moderated non-linear term is resolved from the design, not guesse
   ## and every lower-order term must be present (marginality)
   for (tm in c("S", ".mc", ".sq", "S:.mc")) expect_true(tm %in% cn)
 })
+
+# ---------------------------------------------------------------------------
+# Title blocks: the figure must never draw above its own top margin.
+#
+# Regression for a shipped defect. The module figure fixed mar[3] at 4.0 lines
+# and drew the first of its wrapped title lines at line 4.2, so a title that
+# needed three lines lost line one off the top of the device. What went missing
+# was the outcome name - the one part of the title a reader cannot reconstruct
+# from what survived. Nothing errored and no text overflowed horizontally, so
+# neither .rp_text_fits() nor the eye caught it.
+test_that("the title block fits inside the top margin it asks for", {
+  f <- tempfile(fileext = ".png")
+  grDevices::png(f, width = 8.4 * 200, height = 5 * 200, res = 200)
+  on.exit({
+    if (grDevices::dev.cur() > 1L) grDevices::dev.off()
+    unlink(f)
+  }, add = TRUE)
+
+  labs <- c(
+    "X",
+    "Attachment anxiety (T1)",
+    "Attachment_Anxiety_General_T1",
+    paste("Change in maternal attachment anxiety, general relational form,",
+          "measured at T1 and again at T4 with the 36-item ECR-R"))
+  mars <- list(c(4.2, 17, 4.0, 6.5), c(4.2, 11, 5.2, 5.5))
+
+  for (m in mars) for (lab in labs) {
+    h <- dmsa:::.rp_head(
+      m,
+      sprintf("%s - module level, three lenses, maxT within each system", lab),
+      paste("Each block is one family: a module is corrected only against the",
+            "other modules of its own system. Bold = survives."))
+    e <- environment(h)
+    top <- graphics::par("mar")[3]
+    ## every title line lands strictly inside the margin that was reserved
+    expect_true(max(e$ttl_at) < top,
+                info = paste("title overflows top margin:", lab))
+    ## and the subtitle stays in the margin rather than dropping into the panel
+    expect_true(min(e$sub_at) > 0,
+                info = paste("subtitle falls into the panel:", lab))
+    ## title above subtitle, never overlapping
+    expect_true(min(e$ttl_at) > max(e$sub_at))
+  }
+})
+
+test_that("locus panels carry the outcome, and survive a label of any length", {
+  pr <- data.frame(probe = sprintf("cg%08d", 1:8),
+                   b = seq(.01, .03, length.out = 8), se = rep(.008, 8),
+                   d = rep(-1, 8), chr = "20",
+                   pos = 3084690 + c(0, 40, 70, 130, 160, 220, 250, 255),
+                   stringsAsFactors = FALSE)
+  for (ctx in c("", "Attachment anxiety (T1)",
+                paste(rep("a very long outcome label indeed", 6), collapse = " "))) {
+    f <- tempfile(fileext = ".png")
+    expect_silent(suppressMessages(
+      dmsa_plot_locus(pr, gene = "AVP", context = ctx, file = f)))
+    expect_true(file.exists(f) && file.size(f) > 0)
+    unlink(f)
+  }
+})

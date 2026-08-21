@@ -18,7 +18,8 @@ dmsa_triangulate(
   correction = c("maxT", "minP"),
   weighting = c("combined", "reliability", "flat"),
   w_floor = 1.5,
-  seed = NULL
+  seed = NULL,
+  ri_group = NULL
 )
 }
 \arguments{
@@ -53,6 +54,15 @@ a unit with many concordant probes) or \code{"minP"}.}
 \item{w_floor}{Numeric. Lower bound applied to reliability weights before normalisation, so a single poorly behaved probe cannot be driven to zero influence. Ignored when \code{weighting = "flat"}.}
 
 \item{seed}{Optional integer.}
+
+\item{ri_group}{Optional grouping factor for a one-way random intercept,
+one entry per row of \code{M} (typically the chip). When supplied with
+more than one level, the aligned response and every design column are
+quasi-demeaned by a REML-estimated shrinkage factor before any
+permutation - the GLS solution for \code{(1 | group)}, at a fraction of
+the cost of a mixed fit per probe. \code{NULL} (default) leaves the
+design untouched. The transform is applied identically under permutation,
+so it moves power, not type-I error.}
 }
 \value{
 data.frame, one row per unit: the raw and family-adjusted p under

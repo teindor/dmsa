@@ -65,6 +65,14 @@
 #' @param seed Optional integer.
 #' @param weighting Character. Probe weighting engine within a unit: \code{"combined"} (default) fuses the flat and reliability statistics on one shared permutation stream, \code{"flat"} weights every usable aligned probe equally, \code{"reliability"} weights each probe by its item-rest correlation with the rest of its unit. Weights are computed from methylation alone, so the permutation null is unaffected.
 #' @param w_floor Numeric. Lower bound applied to reliability weights before normalisation, so a single poorly behaved probe cannot be driven to zero influence. Ignored when \code{weighting = "flat"}.
+#' @param ri_group Optional grouping factor for a one-way random intercept,
+#'   one entry per row of \code{M} (typically the chip). When supplied with
+#'   more than one level, the aligned response and every design column are
+#'   quasi-demeaned by a REML-estimated shrinkage factor before any
+#'   permutation - the GLS solution for \code{(1 | group)}, at a fraction of
+#'   the cost of a mixed fit per probe. \code{NULL} (default) leaves the
+#'   design untouched. The transform is applied identically under permutation,
+#'   so it moves power, not type-I error.
 #' @return data.frame, one row per unit: the raw and family-adjusted p under
 #'   each lens, the ACAT omnibus, the direction, and how many probes agreed.
 #' @export
