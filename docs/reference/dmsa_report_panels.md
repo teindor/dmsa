@@ -76,7 +76,7 @@ probes <- data.frame(system_id = 1L, outcome = "anx", gene = "NR3C1",
                      d = c(-1, -1, -1, 1, 1, -1))
 
 out <- dmsa_report_panels(systems, genes, probes, outdir = tempfile())
-#> wrote 3 figure(s) to /private/var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T/RtmpV1rBC7/file5bfa7ab38623
+#> wrote 3 figure(s) to /private/var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T/RtmpEgjJxj/file604855516c2b
 out[, c("panel", "system_id", "outcome")]
 #>   panel system_id outcome
 #> 1     1        NA    <NA>

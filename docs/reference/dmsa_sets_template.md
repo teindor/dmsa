@@ -28,11 +28,11 @@ The paths written, invisibly.
 ``` r
 p <- tempfile(fileext = ".csv")
 dmsa_sets_template(p)
-#> wrote /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpV1rBC7/file5bfa787d7b63.csv and /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpV1rBC7/file5bfa787d7b63.md
+#> wrote /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpEgjJxj/file60485423308c.csv and /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpEgjJxj/file60485423308c.md
 
 ## the .md alongside it states the rules the validator enforces
 basename(c(p, sub("\\.csv$", ".md", p)))
-#> [1] "file5bfa787d7b63.csv" "file5bfa787d7b63.md" 
+#> [1] "file60485423308c.csv" "file60485423308c.md" 
 utils::read.csv(p)[, c("system_short", "module_id", "gene", "cpg")]
 #>   system_short module_id  gene        cpg
 #> 1          hpa       1.1 NR3C1 cg01234567

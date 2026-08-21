@@ -14,7 +14,7 @@ probes alone.
 That last property is not incidental. Most set-based methylation engines compute
 a unit's p-value partly from the other probes the analyst happened to load, so
 the same finding moves when the analysis set changes — a failure mode we name
-and measure as **p-dancing** (`dmsa_pdance()`). DMSA's unit statistics are
+and measure as **p-dancing**. DMSA's unit statistics are
 invariant to it.
 
 ---
@@ -204,7 +204,6 @@ with a smaller sample. If you don't, pay the premium.
 | function | purpose |
 |---|---|
 | `dmsa_change()` | longitudinal two-wave mDMSA: time × S × E ≡ ΔS × E |
-| `dmsa_pdance()` | set-selection sensitivity — engine-agnostic p-dancing diagnostic |
 | `dmsa_scores()` | aligned unit scores without inference |
 | `dmsa_test()` | a single unit, one call |
 | `dmsa_tree()` | the level-local cascade on its own |

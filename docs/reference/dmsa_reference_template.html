@@ -91,7 +91,7 @@ is unambiguous. Overwrite the rows with your own.</p>
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="va">f</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempfile</a></span><span class="op">(</span>fileext <span class="op">=</span> <span class="st">".csv"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">dmsa_reference_template</span><span class="op">(</span><span class="va">f</span><span class="op">)</span></span></span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> template written to /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpV1rBC7/file5bfa7560a470.csv</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> template written to /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpEgjJxj/file6048511d7127.csv</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span>   system + gene are required; module, w_g, anchor, role, confidence, source are optional.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span>   w_g: +1 raises system activation, -1 opposes it, 0 off-axis; continuous values in [-1, 1] are allowed.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span>   anchor: TRUE for the genes that DEFINE activation for that system.</span>
@@ -103,7 +103,7 @@ is unambiguous. Overwrite the rows with your own.</p>
 <span class="r-in"><span><span class="co">## the filled-in rows show every accepted column; replace them with your own</span></span></span>
 <span class="r-in"><span><span class="co">## panel, then read the result back as a reference bundle</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="dmsa_reference_csv.html">dmsa_reference_csv</a></span><span class="op">(</span><span class="va">f</span>, quiet <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> dmsa reference: file5bfa7560a470.csv</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> dmsa reference: file6048511d7127.csv</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   8 genes across 2 systems, 6 modules</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   polarity: 8 gene-system pairs, continuous (6 activating, 2 braking, 0 off-axis)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   anchors: user (2 genes)</span>

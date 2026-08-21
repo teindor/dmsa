@@ -80,7 +80,7 @@
 <!-- badges: start -->
 
 <p><strong>DMSA asks a directional question of a set of CpG probes: does this gene’s — or this biological system’s — methylation move in the direction that raises or lowers its expression?</strong> It then names the gene responsible while paying the multiplicity toll, and it computes each unit’s answer from that unit’s own probes alone.</p>
-<p>That last property is not incidental. Most set-based methylation engines compute a unit’s p-value partly from the other probes the analyst happened to load, so the same finding moves when the analysis set changes — a failure mode we name and measure as <strong>p-dancing</strong> (<code>dmsa_pdance()</code>). DMSA’s unit statistics are invariant to it.</p>
+<p>That last property is not incidental. Most set-based methylation engines compute a unit’s p-value partly from the other probes the analyst happened to load, so the same finding moves when the analysis set changes — a failure mode we name and measure as <strong>p-dancing</strong>. DMSA’s unit statistics are invariant to it.</p>
 <hr>
 <div class="section level2">
 <h2 id="what-dmsa-does">What DMSA does<a class="anchor" aria-label="anchor" href="#what-dmsa-does"></a>
@@ -216,10 +216,6 @@
 <td>longitudinal two-wave mDMSA: time × S × E ≡ ΔS × E</td>
 </tr>
 <tr>
-<td><code>dmsa_pdance()</code></td>
-<td>set-selection sensitivity — engine-agnostic p-dancing diagnostic</td>
-</tr>
-<tr>
 <td><code><a href="reference/dmsa_scores.html">dmsa_scores()</a></code></td>
 <td>aligned unit scores without inference</td>
 </tr>
@@ -273,7 +269,7 @@
 </tr>
 </tbody>
 </table>
-<p>Run <code><a href="https://rdrr.io/pkg/dmsa/man" class="external-link">help(package = "dmsa")</a></code> for the full index (59 exported functions).</p>
+<p>Run <code><a href="https://teindor.github.io/dmsa/reference">help(package = "dmsa")</a></code> for the full index (59 exported functions).</p>
 <hr>
 </div>
 <div class="section level2">

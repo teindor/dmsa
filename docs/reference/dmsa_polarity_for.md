@@ -28,7 +28,7 @@ polarity.
 ``` r
 f <- tempfile(fileext = ".csv")
 dmsa_reference_template(f)
-#> template written to /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpV1rBC7/file5bfa48f6003c.csv
+#> template written to /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpEgjJxj/file6048404d66b0.csv
 #>   system + gene are required; module, w_g, anchor, role, confidence, source are optional.
 #>   w_g: +1 raises system activation, -1 opposes it, 0 off-axis; continuous values in [-1, 1] are allowed.
 #>   anchor: TRUE for the genes that DEFINE activation for that system.
