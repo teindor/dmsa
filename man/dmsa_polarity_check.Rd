@@ -19,3 +19,13 @@ Invisibly, a list with \code{ok} and one entry per check.
 \description{
 Validate a candidate polarity table
 }
+\examples{
+## An anchor gene is what defines "more activation" for its system, so an
+## anchor that brakes its own system is a contradiction, not a small error.
+cand <- data.frame(system_id = "HPA", gene = c("CRH", "POMC", "NR3C1"),
+                   w_g = c(-1, 1, -1), anchor = c(TRUE, FALSE, FALSE),
+                   w_g_source = "curated")
+chk <- dmsa_polarity_check(cand)
+chk$ok
+dmsa_polarity_check("alpha", verbose = FALSE)$ok
+}

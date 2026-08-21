@@ -17,3 +17,18 @@ Invisibly, a list with \code{ok} and one entry per check.
 \description{
 Check a gene model before drawing from it
 }
+\examples{
+## AVP sits on the minus strand, so its 5' UTR is the HIGH coordinate
+gm <- data.frame(
+  gene = "AVP", gene_id = "ENSG00000101200", chr = "chr20",
+  gene_start = 3082556, gene_end = 3084724, strand = "-",
+  transcript = "ENST00000380293", transcript_biotype = "protein_coding",
+  canonical = TRUE, feature = c("utr5", "cds", "cds", "utr3"),
+  start = c(3084665, 3084555, 3082700, 3082556),
+  end   = c(3084724, 3084664, 3082802, 3082699),
+  exon_rank = c(1, 1, 3, 3), source = "gff", genome = "hg38")
+dmsa_gene_model_check(gm)$ok
+## a feature outside the gene span means a neighbour's exons survived
+bad <- gm; bad$start[1] <- 3000000; bad$end[1] <- 3000100
+dmsa_gene_model_check(bad, verbose = FALSE)$ok
+}

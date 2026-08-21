@@ -61,3 +61,14 @@ per-category log-odds are reported separately. If the categories are in any
 sense ordered, \code{family = "ordinal"} keeps the direction and is strictly
 preferable.
 }
+\examples{
+set.seed(1)
+n <- 120
+d <- data.frame(S = rnorm(n), cv = rnorm(n),
+                cid = rep(seq_len(n / 2), each = 2))
+d$y <- rbinom(n, 1, plogis(0.9 * d$S))
+## a binary outcome yields ONE coefficient, so the sign of the log-odds
+## is still the expression-aligned direction
+dmsa_outcome(d, outcome = "y", score = "S", family = "binomial",
+             covariates = "cv", block = "cid", B = 99, seed = 2)
+}

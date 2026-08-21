@@ -13,3 +13,9 @@ data.frame with system_id, system, gene, n_kept, usability
 Read the Project Alpha gene codebook shipped with the package:
 549 genes assigned to 30 biological systems.
 }
+\examples{
+gs <- alpha_gene_systems()
+dim(gs)
+length(unique(gs$system_id))
+head(gs[, c("system_id", "system", "gene", "n_kept", "usability")], 4)
+}

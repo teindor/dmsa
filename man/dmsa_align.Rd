@@ -51,3 +51,14 @@ data.frame: probe, gene, d, p_plus, w_g, s (= d * w_g at system
 \description{
 Build the aligned sign s_j for a set of probes
 }
+\examples{
+# d is the CpG -> expression sign, w_g the gene -> system-tone sign.
+# A promoter CpG silences NR3C1 (d = -1) and GR is the HPA brake (w_g = -1),
+# so the probe votes for HIGHER axis tone: s = d * w_g = +1.
+g <- c("CRH", "NR3C1")
+dcall <- data.frame(cpg = c("cg_crh", "cg_nr3c1"), d = c(1, -1),
+                    p_plus = c(0.9, 0.1))
+pol <- data.frame(gene = g, w_g = c(1, -1))
+dmsa_align(dcall, genes = g, level = "gene")
+dmsa_align(dcall, genes = g, level = "system", polarity = pol)
+}

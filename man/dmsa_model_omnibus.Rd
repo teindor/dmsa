@@ -36,3 +36,18 @@ test. ACAT is valid under arbitrary dependence, so hedging across projections
 costs no multiplicity - unlike a Bonferroni over arms, which is what the
 old \code{min(1, 2*min(p))} gate amounted to.
 }
+\examples{
+set.seed(1)
+n <- 80
+M <- matrix(rnorm(n * 6), n, 6)
+al <- dmsa_align(data.frame(cpg = paste0("cg", 1:6), d = c(1, 1, -1, 1, -1, 1),
+                            p_plus = rep(.9, 6)),
+                 genes = rep("OXTR", 6), level = "gene")
+sc <- dmsa_scores(M, al)
+d <- data.frame(age = rnorm(n), cID = rep(seq_len(n / 2), each = 2))
+d$y <- 0.6 * sc$aligned + rnorm(n)
+## one p per projection, combined by ACAT - hedging costs no multiplicity
+o <- dmsa_model_omnibus(sc, y ~ S + age, d, term = "S", block = d$cID,
+                        B = 99, seed = 1)
+round(c(o$p_by_flavour, omnibus = o$p), 3)
+}

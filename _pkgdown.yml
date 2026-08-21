@@ -1,0 +1,75 @@
+url: https://teindor.github.io/dmsa
+
+template:
+  bootstrap: 5
+  includes:
+    in_header: |
+      <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareSourceCode",
+        "name": "dmsa",
+        "alternateName": "Directional Methylation Set Analysis",
+        "description": "Directional Methylation Set Analysis (DMSA) is an R package for gene-set and system-level analysis of DNA methylation array data. Before aggregating, DMSA aligns each probe's effect to that probe's predicted consequence for gene expression, so probes predicted to raise expression and probes predicted to lower it are no longer averaged against each other. Each unit's statistic is computed from that unit's own probes alone, and multiplicity is corrected only within level-local families. In a benchmark where opposing effects cancelled under conventional aggregation, DMSA reached 84% power against 7-8% for camera, fry and over-representation alternatives, and reported the correct biological direction in 100% of its detections. Where the question was instead whether a whole panel was associated, DMSA's pooled score stayed silent while globaltest correctly rejected.",
+        "codeRepository": "https://github.com/teindor/dmsa",
+        "programmingLanguage": { "@type": "ComputerLanguage", "name": "R" },
+        "license": "https://spdx.org/licenses/MIT.html",
+        "identifier": "https://doi.org/10.5281/zenodo.22023957",
+        "applicationCategory": "Bioinformatics",
+        "keywords": ["DNA methylation","gene set analysis","epigenetics",
+                     "EWAS","directional inference","permutation testing"],
+        "author": {
+          "@type": "Person",
+          "name": "Tsachi Ein-Dor",
+          "identifier": "https://orcid.org/0000-0002-3078-7591",
+          "affiliation": {
+            "@type": "Organization",
+            "name": "Reichman University"
+          }
+        }
+      }
+      </script>
+
+home:
+  title: dmsa - Directional Methylation Set Analysis
+  description: >
+    Aligns probe-level DNA methylation effects to their predicted consequence
+    for gene expression before aggregating, tests each unit through three
+    pre-specified lenses on one permutation stream, and names the responsible
+    gene inside level-local families with family-wise error control.
+
+navbar:
+  structure:
+    left: [intro, reference, articles, news]
+    right: [search, github]
+
+reference:
+  - title: The two-call interface
+    desc: Declare the design once, run it once.
+    contents: [dmsa_frame, dmsa_report, dmsa_report_panels]
+  - title: Alignment and testing
+    desc: The directional chain and the three lenses.
+    contents: [dmsa_align, dmsa_triangulate, dmsa_test, dmsa_score, dmsa_scores,
+               dmsa_relweights, dmsa_perm_pvalue, dmsa_omnibus]
+  - title: Selection and hierarchy
+    contents: [dmsa_sets, dmsa_select, dmsa_cascade, dmsa_systems, dmsa_levels,
+               dmsa_tree, dmsa_sets_check, dmsa_sets_template, dmsa_cascade_null]
+  - title: Polarity and reference maps
+    contents: [dmsa_polarity, dmsa_polarity_check, dmsa_polarity_for,
+               dmsa_polarity_fetch, dmsa_polarity_review, dmsa_polarity_sources,
+               dmsa_reference, dmsa_reference_csv, dmsa_reference_read,
+               dmsa_reference_template, dmsa_reference_write, dmsa_evidence,
+               alpha_polarity, alpha_gene_systems, alpha_reference, alpha_design]
+  - title: Design, models and extensions
+    contents: [dmsa_design, dmsa_check_design, dmsa_model, dmsa_model_omnibus,
+               dmsa_fit, dmsa_moderate, dmsa_change, dmsa_outcome, dmsa_contrasts,
+               dmsa_contrast_adjust, dmsa_mvalues, dmsa_gate, dmsa_balance]
+  - title: Multiplicity
+    contents: [dmsa_lfdr, dmsa_bfdr_select]
+  - title: Figures
+    contents: [dmsa_plot_genes, dmsa_plot_locus, dmsa_plot_locus_gviz,
+               dmsa_plot_probes, dmsa_plot_systems, dmsa_gene_model,
+               dmsa_gene_model_check]
+  - title: Coordinates and annotation
+    contents: [dmsa_probe_coords, dmsa_probe_annotation_template,
+               dmsa_write_coords, dmsa_test_drive]

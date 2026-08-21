@@ -11,6 +11,17 @@ dmsa_mvalues(beta, eps = 1e-04)
 
 \item{eps}{clamp bound}
 }
+\value{
+A numeric matrix or vector of M-values, the same shape as
+  \code{beta}, on the logit scale.
+}
 \description{
 M-value transform with clamping
+}
+\examples{
+beta <- matrix(runif(24, 0.05, 0.95), nrow = 6,
+               dimnames = list(NULL, paste0("cg", 1:4)))
+round(head(dmsa_mvalues(beta), 3), 2)
+## clamping is what keeps a beta of exactly 0 or 1 from becoming +/-Inf
+dmsa_mvalues(c(0, 0.5, 1))
 }

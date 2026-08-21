@@ -75,6 +75,23 @@
 #'   so it moves power, not type-I error.
 #' @return data.frame, one row per unit: the raw and family-adjusted p under
 #'   each lens, the ACAT omnibus, the direction, and how many probes agreed.
+#' @examples
+#' set.seed(1)
+#' n <- 100
+#' ## half the probes raise expression when methylated, half lower it: on the
+#' ## methylation scale they cancel, on the expression scale they agree
+#' d <- rep(c(1, -1), each = 3)
+#' f <- rnorm(n)
+#' M <- sapply(d, function(dj) dj * .6 * f + sqrt(1 - .6^2) * rnorm(n))
+#' colnames(M) <- paste0("cg", 1:6)
+#' dat <- data.frame(y = .5 * f + rnorm(n), cv = rnorm(n))
+#' al <- dmsa_align(data.frame(cpg = colnames(M), d = d,
+#'                             p_plus = ifelse(d > 0, .9, .1)),
+#'                  genes = rep("OXTR", 6), level = "gene")
+#'
+#' res <- dmsa_triangulate(M, dat, rhs = c("y", "cv"), term = "y",
+#'                         units = rep("OXTR", 6), alignment = al, B = 99, seed = 1)
+#' res[, c("unit", "n_probes", "concordance", "direction", "p_omnibus")]
 #' @export
 dmsa_triangulate <- function(M, data, rhs, term, units, alignment, block = NULL,
                              B = 1999, winsor = 3,
@@ -84,7 +101,15 @@ dmsa_triangulate <- function(M, data, rhs, term, units, alignment, block = NULL,
                              w_floor = 1.5, seed = NULL, ri_group = NULL) {
   method <- match.arg(method); correction <- match.arg(correction)
   weighting <- match.arg(weighting)
-  if (!is.null(seed)) set.seed(seed)
+  if (!is.null(seed)) {
+    ## restore the caller's RNG state on exit: a permutation seed is for
+    ## reproducing THIS result, not for silently reseeding the user's session.
+    .old_seed <- if (exists(".Random.seed", envir = globalenv()))
+      get(".Random.seed", envir = globalenv()) else NULL
+    on.exit(if (!is.null(.old_seed))
+      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+    set.seed(seed)
+  }
   M <- as.matrix(M); data <- as.data.frame(data)
   al <- as.data.frame(alignment)
   if (length(units) != ncol(M) || nrow(al) != ncol(M))

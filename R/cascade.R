@@ -30,6 +30,16 @@
 #'   \code{NULL} is returned, signalling the caller to fall back to a
 #'   frequentist rule.
 #' @return numeric vector of local fdr values, or NULL if not estimable.
+#' @examples
+#' set.seed(1)
+#' ## 300 null genes and 30 carrying a real aligned effect
+#' z <- c(rnorm(300), rnorm(30, mean = 4))
+#' lfdr <- dmsa_lfdr(z)
+#' round(quantile(lfdr, c(0, .5, 1)), 3)
+#' mean(lfdr[301:330]) < mean(lfdr[1:300])
+#' ## too few units to fit the two-group model: NULL asks the caller to
+#' ## fall back to a frequentist rule rather than guess
+#' is.null(dmsa_lfdr(rnorm(10)))
 #' @export
 dmsa_lfdr <- function(z, prior_odds_multiplier = 1, min_n = 50L) {
   z <- as.numeric(z)
@@ -56,6 +66,13 @@ dmsa_lfdr <- function(z, prior_odds_multiplier = 1, min_n = 50L) {
 #' @param lfdr vector of local fdr values
 #' @param q target Bayesian FDR
 #' @return integer indices of selected units
+#' @examples
+#' lfdr <- c(rep(0.001, 10), rep(0.5, 10), rep(0.99, 10))
+#' sel <- dmsa_bfdr_select(lfdr, q = 0.05)
+#' sel
+#' mean(lfdr[sel])
+#' # nothing is selected when no unit is credible enough to fit the budget
+#' dmsa_bfdr_select(rep(0.9, 20), q = 0.05)
 #' @export
 dmsa_bfdr_select <- function(lfdr, q = 0.05) {
   if (!length(lfdr)) return(integer(0))
@@ -114,6 +131,19 @@ dmsa_bfdr_select <- function(lfdr, q = 0.05) {
 #' @param borrow Upper bound on the prior-odds multiplier passed from a parent
 #'   to its children at empirical-Bayes levels. 1 disables borrowing.
 #' @return An object of class \code{dmsa_cascade}.
+#' @examples
+#' set.seed(1)
+#' tree <- expand.grid(probe = 1:3, gene = 1:2, system = 1:4)
+#' tree <- tree[, c("system", "gene")]      # outermost level first
+#' P <- nrow(tree); n <- 60; x <- rnorm(n)
+#' M <- matrix(rnorm(n * P), n, P) + outer(x, 0.9 * (tree$system == 1))
+#' al <- dmsa_align(data.frame(cpg = paste0("p", 1:P), d = 1, p_plus = 0.95),
+#'                  genes = paste0("g", tree$gene), level = "gene")
+#' fit <- lm(M ~ x); b <- coef(fit)["x", ]
+#' se <- sqrt(colSums(residuals(fit)^2) / (n - 2) / sum((x - mean(x))^2))
+#' nulls <- dmsa_cascade_null(b, se, al, tree, exposure = x, M = M, B = 49)
+#' cs <- dmsa_cascade(b, se, al, tree, nulls)
+#' cs$tables$system
 #' @export
 dmsa_cascade <- function(b, se, alignment, tree, nulls,
                          engine = NULL, gate = c("both", "dense", "sparse"),
@@ -297,6 +327,19 @@ dmsa_cascade <- function(b, se, alignment, tree, nulls,
 #' @param B number of permutations.
 #' @param method pooling method.
 #' @return named list suitable for the \code{nulls} argument.
+#' @examples
+#' set.seed(1)
+#' tree <- expand.grid(probe = 1:3, gene = 1:2, system = 1:4)
+#' tree <- tree[, c("system", "gene")]      # outermost level first
+#' P <- nrow(tree); n <- 60; x <- rnorm(n)
+#' M <- matrix(rnorm(n * P), n, P)
+#' al <- dmsa_align(data.frame(cpg = paste0("p", 1:P), d = 1, p_plus = 0.95),
+#'                  genes = paste0("g", tree$gene), level = "gene")
+#' fit <- lm(M ~ x); b <- coef(fit)["x", ]
+#' se <- sqrt(colSums(residuals(fit)^2) / (n - 2) / sum((x - mean(x))^2))
+#' # B = 49 keeps the example quick; a real calibration wants B >= 999
+#' nulls <- dmsa_cascade_null(b, se, al, tree, exposure = x, M = M, B = 49)
+#' vapply(nulls, length, integer(1))
 #' @export
 dmsa_cascade_null <- function(b, se, alignment, tree, exposure, M,
                               block = NULL, B = 999L,

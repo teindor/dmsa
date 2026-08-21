@@ -180,3 +180,18 @@ test drive (with \code{autofix = TRUE} correcting what is safely
 correctable, LOUDLY), and returns a \code{dmsa_frame} for
 \code{\link{dmsa_report}}.
 }
+\examples{
+set.seed(42)
+map <- data.frame(gene = rep(paste0("G", 1:3), each = 3), system_id = 1L,
+                  system = "Sim system")
+map$probe <- sprintf("cg\%07d", seq_len(nrow(map)))
+map$column <- paste0(map$probe, "_", map$gene)
+map$best_direction <- rep(c(-1, 1), length.out = nrow(map))
+map$p_plus <- ifelse(map$best_direction > 0, 0.9, 0.1)
+d <- data.frame(out1 = rnorm(60), cov1 = rnorm(60),
+                cID = rep(1:30, each = 2))
+sig <- 0.5 * outer(d$out1, map$best_direction * (map$gene == "G1"))
+d[map$column] <- plogis(matrix(rnorm(60 * nrow(map)), 60) + sig)
+dmsa_frame(d, map = map, outcome = "out1", covariates = "cov1",
+           random_effects = "cID", B = 99, outdir = tempfile("dmsa_ex"))
+}

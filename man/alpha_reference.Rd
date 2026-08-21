@@ -17,3 +17,9 @@ A \code{dmsa_reference}.
 \description{
 The bundled Project Alpha tables as a reference bundle
 }
+\examples{
+ref <- alpha_reference()
+ref
+# the polarity dmsa_align() consumes for one system (2 = HPA axis)
+head(dmsa_polarity_for(ref, "2"), 4)
+}

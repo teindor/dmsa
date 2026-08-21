@@ -158,6 +158,16 @@ print.dmsa_contrasts <- function(x, ...) {
 #' @param direction Optional character or numeric vector of the pooled
 #'   directions, carried through so the table reports sign next to significance.
 #' @return A data frame with raw and adjusted p-values.
+#' @examples
+#' set.seed(1)
+#' d <- data.frame(style = factor(sample(c("secure", "anxious", "avoidant"), 90,
+#'                                       TRUE)),
+#'                 age = rnorm(90), cID = rep(1:45, each = 2))
+#' des <- dmsa_design(focal = "style", fixed = "age", exchangeable = "cID")
+#' cc <- dmsa_contrasts(d, des, reference = "secure")
+#' # one p-value per directional contrast, corrected within the family
+#' dmsa_contrast_adjust(cc, c(anxious = 0.01, avoidant = 0.04),
+#'                      direction = c("+", "-"))
 #' @export
 dmsa_contrast_adjust <- function(x, p, direction = NULL) {
   if (!inherits(x, "dmsa_contrasts"))
@@ -196,6 +206,19 @@ dmsa_contrast_adjust <- function(x, p, direction = NULL) {
 #' @param seed RNG seed.
 #' @return A list with the pooled statistic, the permutation p-value, and an
 #'   explicit \code{directional = FALSE}.
+#' @examples
+#' set.seed(1)
+#' n <- 90
+#' d <- data.frame(style = factor(sample(c("secure", "anxious", "avoidant"),
+#'                                       n, TRUE)),
+#'                 age = rnorm(n), cID = rep(seq_len(n / 2), each = 2))
+#' Y <- matrix(plogis(rnorm(n * 8)), n, 8)     # beta values for 8 probes
+#' des <- dmsa_design(focal = "style", fixed = "age", exchangeable = "cID")
+#' ## three attachment styles with no defensible reference level: the pooled
+#' ## F asks only whether the factor moves the set, and gives up the direction
+#' o <- dmsa_omnibus(d, Y, des, B = 99, seed = 5)
+#' round(o$p_perm, 3)
+#' o$directional    # always FALSE: a pooled F on 2 df has no sign
 #' @export
 dmsa_omnibus <- function(data, Y, design, beta_input = TRUE, B = 999,
                          seed = 1L) {
@@ -237,6 +260,12 @@ dmsa_omnibus <- function(data, Y, design, beta_input = TRUE, B = 999,
   blk <- if (!is.null(design$exchangeable)) dat[[design$exchangeable]] else
     seq_len(n)
   idx <- split(seq_len(n), blk)
+  ## restore the caller's RNG state on exit: a permutation seed is for
+  ## reproducing THIS result, not for silently reseeding the user's session.
+  .old_seed <- if (exists(".Random.seed", envir = globalenv()))
+    get(".Random.seed", envir = globalenv()) else NULL
+  on.exit(if (!is.null(.old_seed))
+    assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
   set.seed(seed)
   null <- vapply(seq_len(B), function(b) {
     o <- unlist(idx[sample.int(length(idx))], use.names = FALSE)

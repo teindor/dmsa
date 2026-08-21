@@ -18,3 +18,11 @@ dmsa_reference_template(path, with_modules = TRUE)
 Produces a small, filled-in example with every accepted column, so the shape
 is unambiguous. Overwrite the rows with your own.
 }
+\examples{
+f <- tempfile(fileext = ".csv")
+dmsa_reference_template(f)
+head(utils::read.csv(f), 3)
+## the filled-in rows show every accepted column; replace them with your own
+## panel, then read the result back as a reference bundle
+dmsa_reference_csv(f, quiet = TRUE)
+}

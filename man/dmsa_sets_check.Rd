@@ -17,3 +17,15 @@ Invisibly, a list with \code{ok} and one entry per check.
 \description{
 Validate a candidate cascade before using it
 }
+\examples{
+sets <- data.frame(
+  system_id = "1", system_short = "hpa", system = "HPA axis",
+  module_id = "1.1", module = "Corticosteroid receptors",
+  gene = c("NR3C1", "NR3C1", "FKBP5"),
+  cpg = c("cg01234567", "cg07654321", "cg11223344"))
+
+## a gene in two modules, or a duplicated row, would make the family
+## ambiguous; missing module evidence is only a caveat
+chk <- dmsa_sets_check(sets)
+chk$ok
+}

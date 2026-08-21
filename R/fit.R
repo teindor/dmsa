@@ -8,6 +8,14 @@
 #' M-value transform with clamping
 #' @param beta numeric matrix or vector of beta values in (0,1)
 #' @param eps clamp bound
+#' @return A numeric matrix or vector of M-values, the same shape as
+#'   \code{beta}, on the logit scale.
+#' @examples
+#' beta <- matrix(runif(24, 0.05, 0.95), nrow = 6,
+#'                dimnames = list(NULL, paste0("cg", 1:4)))
+#' round(head(dmsa_mvalues(beta), 3), 2)
+#' ## clamping is what keeps a beta of exactly 0 or 1 from becoming +/-Inf
+#' dmsa_mvalues(c(0, 0.5, 1))
 #' @export
 dmsa_mvalues <- function(beta, eps = 1e-4) {
   b <- pmin(pmax(beta, eps), 1 - eps)
@@ -54,6 +62,19 @@ dmsa_block_index <- function(block, B) {
 #' @param check Run \code{dmsa_check_design()} first (default TRUE).
 #' @param seed Optional integer for reproducible permutation.
 #' @return An object of class \code{dmsa_fit}.
+#' @examples
+#' set.seed(1)
+#' n <- 80; K <- 6; x <- rnorm(n); d <- sample(c(-1, 1), K, TRUE)
+#' M <- matrix(rnorm(n * K), n, K) + outer(x, 0.5 * d)
+#' dat <- data.frame(cID = rep(1:40, each = 2), chip = rep(1:10, each = 8),
+#'                   x = x, sex_c = rep(c(-0.5, 0.5), 40))
+#' probes <- paste0("cg", 1:K); dat[probes] <- 1 / (1 + 2^(-M))
+#' al <- dmsa_align(data.frame(cpg = probes, d = d,
+#'                             p_plus = ifelse(d > 0, 0.95, 0.05)),
+#'                  genes = rep(c("g1", "g2"), each = 3))
+#' des <- dmsa_design("x", "sex_c", random = c("chip", "cID"),
+#'                    exchangeable = "cID")
+#' dmsa_fit(dat, probes, al, des, B = 99, engine = "lm", seed = 1)
 #' @export
 dmsa_fit <- function(data, probes, alignment, design,
                      method = c("expected", "fixed"),
@@ -65,7 +86,15 @@ dmsa_fit <- function(data, probes, alignment, design,
   if (length(probes) != nrow(al))
     stop("probes and alignment must cover the same probes, in the same order",
          call. = FALSE)
-  if (!is.null(seed)) set.seed(seed)
+  if (!is.null(seed)) {
+    ## restore the caller's RNG state on exit: a permutation seed is for
+    ## reproducing THIS result, not for silently reseeding the user's session.
+    .old_seed <- if (exists(".Random.seed", envir = globalenv()))
+      get(".Random.seed", envir = globalenv()) else NULL
+    on.exit(if (!is.null(.old_seed))
+      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+    set.seed(seed)
+  }
   data <- as.data.frame(data)
 
   chk <- if (check) dmsa_check_design(design, data) else NULL

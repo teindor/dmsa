@@ -185,6 +185,13 @@ dmsa_reference_csv <- function(path, name = NULL, version = NA_character_,
 #' @param path Where to write it.
 #' @param with_modules Include the module column.
 #' @return \code{path}, invisibly.
+#' @examples
+#' f <- tempfile(fileext = ".csv")
+#' dmsa_reference_template(f)
+#' head(utils::read.csv(f), 3)
+#' ## the filled-in rows show every accepted column; replace them with your own
+#' ## panel, then read the result back as a reference bundle
+#' dmsa_reference_csv(f, quiet = TRUE)
 #' @export
 dmsa_reference_template <- function(path, with_modules = TRUE) {
   d <- data.frame(
@@ -221,6 +228,15 @@ dmsa_reference_template <- function(path, with_modules = TRUE) {
 #' @param reference A \code{dmsa_reference}.
 #' @param dir Directory to create and write into.
 #' @return \code{dir}, invisibly.
+#' @examples
+#' f <- tempfile(fileext = ".csv")
+#' dmsa_reference_template(f)
+#' ref <- dmsa_reference_csv(f, quiet = TRUE)
+#'
+#' d <- tempfile()
+#' dmsa_reference_write(ref, d)
+#' list.files(d)
+#' nrow(dmsa_reference_read(d)$systems)
 #' @export
 dmsa_reference_write <- function(reference, dir) {
   stopifnot(inherits(reference, "dmsa_reference"))

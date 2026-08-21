@@ -19,3 +19,11 @@ negative feedback = LOWER axis tone), 0 = not on the activation axis
 STATUS: draft pending PI approval and per-gene citations. Every use
 prints a reminder until the table is finalised.
 }
+\examples{
+pol <- alpha_polarity()
+head(pol[, c("system", "gene", "w_g", "role")], 4)
+# CRH drives the HPA axis (w_g = +1); NR3C1 is its brake, so more GR means
+# stronger negative feedback and LOWER axis tone (w_g = -1)
+pol[pol$gene \%in\% c("CRH", "NR3C1") & pol$system_id == 2,
+    c("gene", "w_g", "role")]
+}

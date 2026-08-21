@@ -59,6 +59,16 @@
 #'   ones).
 #' @return Numeric vector of per-probe weights, length \code{ncol(Z)}, mean 1
 #'   within each weighted unit and 1 everywhere a guard fired.
+#' @examples
+#' set.seed(2)
+#' n <- 120
+#' f <- rnorm(n)
+#' ## three probes report the gene's shared axis well, three barely at all
+#' lam <- c(.8, .8, .8, .1, .1, .1)
+#' Z <- scale(sapply(lam, function(l) l * f + sqrt(1 - l^2) * rnorm(n)))
+#'
+#' ## weights come from methylation alone, so the permutation null is untouched
+#' round(dmsa_relweights(Z, units = rep("NR3C1", 6), mlt = rep(1, 6)), 2)
 #' @export
 dmsa_relweights <- function(Z, units, mlt, w_floor = 1.5,
                             weighting = c("reliability", "flat")) {

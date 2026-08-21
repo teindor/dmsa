@@ -71,3 +71,21 @@ data.frame, one row per unit: the raw and family-adjusted p under
 \description{
 Three complementary lenses on the same family
 }
+\examples{
+set.seed(1)
+n <- 100
+## half the probes raise expression when methylated, half lower it: on the
+## methylation scale they cancel, on the expression scale they agree
+d <- rep(c(1, -1), each = 3)
+f <- rnorm(n)
+M <- sapply(d, function(dj) dj * .6 * f + sqrt(1 - .6^2) * rnorm(n))
+colnames(M) <- paste0("cg", 1:6)
+dat <- data.frame(y = .5 * f + rnorm(n), cv = rnorm(n))
+al <- dmsa_align(data.frame(cpg = colnames(M), d = d,
+                            p_plus = ifelse(d > 0, .9, .1)),
+                 genes = rep("OXTR", 6), level = "gene")
+
+res <- dmsa_triangulate(M, dat, rhs = c("y", "cv"), term = "y",
+                        units = rep("OXTR", 6), alignment = al, B = 99, seed = 1)
+res[, c("unit", "n_probes", "concordance", "direction", "p_omnibus")]
+}

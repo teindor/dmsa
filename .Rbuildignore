@@ -8,4 +8,9 @@
 ^LICENSE\.md$
 ^POLARITY_AUDIT\.md$
 ^SELECTION_SETS\.md$
-^NEWS\.md$
+^modfig_test\.log$
+^_pkgdown\.yml$
+^docs$
+^dmsa\.Rcheck$
+^dmsa\.BiocCheck$
+^.*\.tar\.gz$

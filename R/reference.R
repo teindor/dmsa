@@ -35,6 +35,17 @@
 #'   (systems then carry no sign and only gene-level analysis is valid).
 #' @param name,version,notes Provenance, printed and stored.
 #' @return An object of class \code{dmsa_reference}.
+#' @examples
+#' ## One row per gene-within-system, a sign per gene, and the anchor genes that
+#' ## fix which way "more activation" points for each system.
+#' sys <- data.frame(gene = c("CRH", "POMC", "NR3C1", "OXT", "OXTR"),
+#'                   system_id = c("1", "1", "1", "2", "2"),
+#'                   system = c(rep("HPA axis", 3), rep("Oxytocin", 2)))
+#' pol <- data.frame(gene = sys$gene, system_id = sys$system_id,
+#'                   w_g = c(1, 1, -1, 1, 0.6))
+#' anc <- data.frame(system_id = c("1", "2"), gene = c("CRH", "OXT"))
+#' dmsa_reference(sys, pol, anc, anchor_method = "curated", name = "toy",
+#'                version = "0.1")
 #' @export
 dmsa_reference <- function(systems, polarity = NULL, anchors = NULL,
                            anchor_method = c("curated", "graph_sink", "user", "none"),
@@ -123,6 +134,11 @@ print.dmsa_reference <- function(x, ...) {
 #'   \code{module_id}, \code{module} to add a module layer (e.g. the HPA
 #'   H / P / A / negative-feedback split).
 #' @return A \code{dmsa_reference}.
+#' @examples
+#' ref <- alpha_reference()
+#' ref
+#' # the polarity dmsa_align() consumes for one system (2 = HPA axis)
+#' head(dmsa_polarity_for(ref, "2"), 4)
 #' @export
 alpha_reference <- function(modules = NULL) {
   sysd <- alpha_gene_systems()
@@ -158,6 +174,18 @@ alpha_reference <- function(modules = NULL) {
 #'   \code{"system"}. \code{"gene"} is always appended.
 #' @return data.frame with one row per probe. Probes whose gene is not in the
 #'   reference get \code{NA} and should be routed to the flat unannotated arm.
+#' @examples
+#' systems <- data.frame(
+#'   gene = c("CRH", "NR3C1", "FKBP5", "OXT"),
+#'   system_id = c("HPA", "HPA", "HPA", "OXT"),
+#'   system = c("HPA axis", "HPA axis", "HPA axis", "Oxytocin"),
+#'   module_id = c("HPA.a", "HPA.b", "HPA.b", "OXT.a"),
+#'   module = c("Drive", "Receptors", "Receptors", "Ligand"))
+#' ref <- dmsa_reference(systems, anchor_method = "none")
+#'
+#' ## a probe whose gene is not in the bundle gets NA and goes to the flat arm
+#' dmsa_tree(ref, genes = c("CRH", "NR3C1", "FKBP5", "NOTINSET"),
+#'           system_id = "HPA")
 #' @export
 dmsa_tree <- function(reference, genes, system_id = NULL, levels = NULL) {
   stopifnot(inherits(reference, "dmsa_reference"))
@@ -183,6 +211,14 @@ dmsa_tree <- function(reference, genes, system_id = NULL, levels = NULL) {
 #' @param system_id The system to extract.
 #' @return data.frame with \code{gene} and \code{w_g}, or NULL if the bundle
 #'   carries no polarity.
+#' @examples
+#' f <- tempfile(fileext = ".csv")
+#' dmsa_reference_template(f)
+#' ref <- dmsa_reference_csv(f, quiet = TRUE)
+#' ## w_g is the gene's sign toward its system's activation tone: +1 raises it,
+#' ## -1 opposes it. dmsa_align() multiplies w_g by each CpG's
+#' ## methylation-to-expression direction to get the probe's aligned sign.
+#' dmsa_polarity_for(ref, "HPA axis")
 #' @export
 dmsa_polarity_for <- function(reference, system_id) {
   stopifnot(inherits(reference, "dmsa_reference"))
@@ -203,6 +239,17 @@ dmsa_polarity_for <- function(reference, system_id) {
 #' @param anchor_method Passed to \code{dmsa_reference()} when no manifest is
 #'   present.
 #' @return A \code{dmsa_reference}.
+#' @examples
+#' ## A bundle on disk is systems.csv, polarity.csv, anchors.csv and an optional
+#' ## manifest.dcf carrying the provenance, all in one directory.
+#' sys <- data.frame(gene = c("CRH", "POMC", "NR3C1"), system_id = "1",
+#'                   system = "HPA axis")
+#' pol <- data.frame(gene = sys$gene, system_id = "1", w_g = c(1, 1, -1))
+#' d <- file.path(tempdir(), "hpa_bundle")
+#' dmsa_reference_write(dmsa_reference(sys, pol, anchor_method = "curated",
+#'                                     name = "hpa-toy", version = "1"), d)
+#' list.files(d)
+#' dmsa_reference_read(d)
 #' @export
 dmsa_reference_read <- function(dir, anchor_method = "user") {
   f <- function(x) file.path(dir, x)

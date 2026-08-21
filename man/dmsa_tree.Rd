@@ -26,3 +26,16 @@ data.frame with one row per probe. Probes whose gene is not in the
 Returns the \code{tree} argument \code{dmsa_cascade()} expects: one row per
 probe, columns ordered outermost first.
 }
+\examples{
+systems <- data.frame(
+  gene = c("CRH", "NR3C1", "FKBP5", "OXT"),
+  system_id = c("HPA", "HPA", "HPA", "OXT"),
+  system = c("HPA axis", "HPA axis", "HPA axis", "Oxytocin"),
+  module_id = c("HPA.a", "HPA.b", "HPA.b", "OXT.a"),
+  module = c("Drive", "Receptors", "Receptors", "Ligand"))
+ref <- dmsa_reference(systems, anchor_method = "none")
+
+## a probe whose gene is not in the bundle gets NA and goes to the flat arm
+dmsa_tree(ref, genes = c("CRH", "NR3C1", "FKBP5", "NOTINSET"),
+          system_id = "HPA")
+}

@@ -12,3 +12,6 @@ outputs/
 dmsa_nsweep_v*/
 *.log
 .DS_Store
+dmsa.Rcheck/
+dmsa.BiocCheck/
+*.tar.gz

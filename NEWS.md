@@ -1,3 +1,29 @@
+# dmsa 0.99.0
+
+Bioconductor submission version. No change to any estimate, permutation, or
+correction; every number in the manuscript reproduces from v1.20.2, archived at
+[10.5281/zenodo.22042907](https://doi.org/10.5281/zenodo.22042907).
+
+Bioconductor requires new packages to enter review at `0.99.z` and to release at
+`1.0.0`, so the version number resets here. The GitHub and Zenodo lineage
+continues at `1.20.x`; the concept DOI
+[10.5281/zenodo.22023957](https://doi.org/10.5281/zenodo.22023957) resolves to
+whichever is current.
+
+* **`cpgdirection` is no longer a declared dependency.** Bioconductor cannot
+  install packages from GitHub, so it forbids declaring them even in `Suggests`.
+  The dependency was already optional in fact — every call site guarded it and
+  either named an alternative or degraded — so it is now resolved by name at
+  call time through a documented `.cpgd()` helper. Behaviour is unchanged when
+  the package is installed, and the error messages now name the repository and
+  the DOI when it is not.
+* **`biocViews` added**, and `VignetteBuilder: knitr`.
+* **A vignette**, `vignette("dmsa")`: a worked analysis in which a
+  direction-blind test reads null and DMSA recovers the signal from the same
+  simulated data, with the cancellation constructed explicitly.
+* `NEWS.md` now ships inside the package rather than being excluded from the
+  build, and a stray log file was removed from the package root.
+
 # dmsa 1.20.1
 
 Test-suite fixes only. No change to any result.

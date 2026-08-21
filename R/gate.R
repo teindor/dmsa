@@ -64,13 +64,35 @@
 #' @param gate Logical. If \code{TRUE} (default) a level is entered only after the level above it has produced a surviving unit, which is the level-local cascade; if \code{FALSE} every declared level is tested independently.
 #' @param sparse_reach Integer. Maximum number of units carried forward from a level into the level below it, used to keep a wide family from expanding the cascade without bound.
 #' @return Object of class \code{dmsa_gate}.
+#' @examples
+#' set.seed(1)
+#' n <- 60; probes <- paste0("cg", 1:6)
+#' map <- data.frame(gene = rep(c("OXTR", "AVP"), each = 3), probe = probes)
+#' al <- dmsa_align(data.frame(cpg = probes, d = rep(c(1, -1), 3),
+#'                             p_plus = rep(c(.9, .1), 3)),
+#'                  genes = map$gene, level = "gene")
+#' M <- matrix(rnorm(n * 6), n, 6, dimnames = list(NULL, probes))
+#' d <- data.frame(age = rnorm(n), cID = rep(seq_len(n / 2), each = 2))
+#' d$y <- as.numeric(scale(M %*% (2 * al$p_s_plus - 1))) + rnorm(n)
+#' ## the two genes are the pre-registered family; a probe is corrected
+#' ## inside its own gene only, never against all six
+#' dmsa_gate(d, M, map, al, y ~ S + age, term = "S", roots = c("OXTR", "AVP"),
+#'           block = d$cID, B = 99, seed = 1)
 #' @export
 dmsa_gate <- function(data, M, map, alignment, formula, term, roots,
                       block = NULL, alpha = 0.05, B = 1999, winsor = 3,
                       gate = c("both", "sparse", "dense"),
                       sparse_reach = "children", seed = NULL) {
   gate <- match.arg(gate)
-  if (!is.null(seed)) set.seed(seed)
+  if (!is.null(seed)) {
+    ## restore the caller's RNG state on exit: a permutation seed is for
+    ## reproducing THIS result, not for silently reseeding the user's session.
+    .old_seed <- if (exists(".Random.seed", envir = globalenv()))
+      get(".Random.seed", envir = globalenv()) else NULL
+    on.exit(if (!is.null(.old_seed))
+      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+    set.seed(seed)
+  }
   data <- as.data.frame(data); M <- as.matrix(M)
   map <- as.data.frame(map, stringsAsFactors = FALSE)
   levs <- names(map)

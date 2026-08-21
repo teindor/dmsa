@@ -45,3 +45,13 @@ this for \code{score * moderator} with a declared \code{dmsa_design()};
 use that when you want the design contract enforced and simple slopes
 reported, and this when the question is an arbitrary term.
 }
+\examples{
+set.seed(1)
+n <- 80
+d <- data.frame(S = rnorm(n), ACE = rnorm(n),
+                cID = rep(seq_len(n / 2), each = 2))   # couples
+d$y <- 0.5 * d$S * d$ACE + rnorm(n)
+## rows are relabelled only within equal-size families, so the couple
+## dependence is preserved under the null
+dmsa_model(y ~ S * ACE, d, term = "S:ACE", block = d$cID, B = 99, seed = 1)
+}

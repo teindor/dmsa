@@ -539,6 +539,13 @@ print.dmsa_evidence <- function(x, n = 25, ...) {
 #'   alongside it as a \code{.md} file with the same stem.
 #' @param example Include two filled example rows. Default \code{TRUE}.
 #' @return The paths written, invisibly.
+#' @examples
+#' p <- tempfile(fileext = ".csv")
+#' dmsa_sets_template(p)
+#'
+#' ## the .md alongside it states the rules the validator enforces
+#' basename(c(p, sub("\\.csv$", ".md", p)))
+#' utils::read.csv(p)[, c("system_short", "module_id", "gene", "cpg")]
 #' @export
 dmsa_sets_template <- function(path = "dmsa_sets_template.csv",
                                   example = TRUE) {
@@ -650,6 +657,17 @@ dmsa_sets_template <- function(path = "dmsa_sets_template.csv",
 #' @param x Path, \code{data.frame}, or \code{dmsa_sets}.
 #' @param verbose Print the report. Default \code{TRUE}.
 #' @return Invisibly, a list with \code{ok} and one entry per check.
+#' @examples
+#' sets <- data.frame(
+#'   system_id = "1", system_short = "hpa", system = "HPA axis",
+#'   module_id = "1.1", module = "Corticosteroid receptors",
+#'   gene = c("NR3C1", "NR3C1", "FKBP5"),
+#'   cpg = c("cg01234567", "cg07654321", "cg11223344"))
+#'
+#' ## a gene in two modules, or a duplicated row, would make the family
+#' ## ambiguous; missing module evidence is only a caveat
+#' chk <- dmsa_sets_check(sets)
+#' chk$ok
 #' @export
 dmsa_sets_check <- function(x, verbose = TRUE) {
   ## Evidence may live in a companion audit table rather than in the cascade

@@ -33,6 +33,20 @@ so the boundary drawn is at \code{alpha/2} on each arm.}
 
 \item{width, height, res}{png dimensions.}
 }
+\value{
+Called for its side effect of drawing a plot on the active
+  graphics device. Returns \code{NULL} invisibly.
+}
 \description{
 Panel 2: gene level inside one system
+}
+\examples{
+set.seed(1)
+genes <- data.frame(gene = paste0("G", 1:8), n_probes = sample(3:9, 8, TRUE),
+                    z = c(rnorm(7), 3.6))
+genes$p_adj <- 2 * pnorm(-abs(genes$z))
+## the permutation null of max|z| over this same family of genes
+null_max <- apply(matrix(rnorm(200 * 8), 200, 8), 1, function(r) max(abs(r)))
+dmsa_plot_genes(genes, null_max = null_max, title = "HPA axis",
+                file = tempfile(fileext = ".png"))
 }

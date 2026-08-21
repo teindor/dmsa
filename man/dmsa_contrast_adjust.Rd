@@ -21,3 +21,14 @@ A data frame with raw and adjusted p-values.
 \description{
 Correct p-values across the contrasts of one categorical exposure
 }
+\examples{
+set.seed(1)
+d <- data.frame(style = factor(sample(c("secure", "anxious", "avoidant"), 90,
+                                      TRUE)),
+                age = rnorm(90), cID = rep(1:45, each = 2))
+des <- dmsa_design(focal = "style", fixed = "age", exchangeable = "cID")
+cc <- dmsa_contrasts(d, des, reference = "secure")
+# one p-value per directional contrast, corrected within the family
+dmsa_contrast_adjust(cc, c(anxious = 0.01, avoidant = 0.04),
+                     direction = c("+", "-"))
+}

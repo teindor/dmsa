@@ -488,10 +488,9 @@
 .report_bridge <- function(probes) {
   if (!length(probes)) return(list(status = "no surviving probes", table = NULL))
   br <- tryCatch({
-    if (!requireNamespace("cpgdirection", quietly = TRUE))
-      stop("cpgdirection not installed")
-    as.data.frame(cpgdirection::cpg_brain_bridge(unique(probes),
-                                                 tissue = "blood"))
+    .bridge <- .cpgd("cpg_brain_bridge")
+    if (is.null(.bridge)) stop("cpgdirection not installed")
+    as.data.frame(.bridge(unique(probes), tissue = "blood"))
   }, error = function(e) NULL)
   if (is.null(br)) return(list(status = "bridge check unavailable", table = NULL))
   hit <- vapply(seq_len(nrow(br)), function(i)
@@ -1000,6 +999,24 @@
 #' @param beep Completion sound. \code{NULL} (default) takes the frame's value.
 #'   \code{TRUE} is \pkg{beepr} sound 8; a number picks another; \code{FALSE}
 #'   is silent. Without \pkg{beepr} installed this is a no-op.
+#' @examples
+#' set.seed(1)
+#' map <- data.frame(gene = rep(c("NR3C1", "FKBP5"), each = 2), system_id = 1L,
+#'                   system = "HPA axis", probe = paste0("cg0", 1:4),
+#'                   column = paste0("cg0", 1:4), best_direction = c(-1, 1, -1, 1),
+#'                   p_plus = c(.1, .9, .1, .9))
+#' dat <- data.frame(anx = rnorm(40), cov1 = rnorm(40), cID = rep(1:20, each = 2))
+#' ## methylation tracks anxiety in each probe's own expression direction
+#' for (i in 1:4)
+#'   dat[[map$column[i]]] <- plogis(rnorm(40) + .6 * dat$anx * map$best_direction[i])
+#'
+#' ## everything lands under outdir; figures and tables are switched off here
+#' ## only to keep the example quick
+#' fr <- dmsa_frame(dat, map = map, outcome = "anx", covariates = "cov1",
+#'                  B = 49, seed = 1, outdir = tempfile(),
+#'                  plots = FALSE, tables = FALSE)
+#' r <- dmsa_report(fr)
+#' r$results[, c("level", "unit", "n_probes", "p_omnibus")]
 #' @export
 dmsa_report <- function(frame, progress = NULL, beep = NULL) {
   .rp_env$gt_said <- FALSE

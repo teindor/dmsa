@@ -35,3 +35,14 @@ is needed upstream.
 The z test here is descriptive; the reportable error control is the
 family-wise permutation (\code{dmsa_perm_pvalue}) on the same statistic.
 }
+\examples{
+## Two promoter CpGs in NR3C1: methylation silences the gene (d = -1), and
+## GR is the HPA brake (w_g = -1), so both probes vote for HIGHER axis tone.
+calls <- data.frame(cpg = c("cg01", "cg02"), d = c(-1, -1), p_plus = c(.1, .2))
+al <- dmsa_align(calls, genes = c("NR3C1", "NR3C1"), level = "system",
+                 polarity = data.frame(gene = "NR3C1", w_g = -1))
+
+tt <- dmsa_test(b = c(0.28, 0.19), se = c(0.09, 0.08), al, method = "expected")
+tt[c("estimate", "se", "z", "p_normal", "n_used")]
+tt$table
+}

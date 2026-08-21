@@ -46,3 +46,20 @@ Invisibly, a data frame of the files written.
 \description{
 Build the whole report: panel 1 once, panels 2 and 3 per firing system
 }
+\examples{
+## one system fires, so it gets a gene panel and a probe panel of its own
+systems <- data.frame(system_id = 1:2, system = c("HPA axis", "Oxytocin"),
+                      outcome = "anx", p_dense = c(0.004, 0.40),
+                      p_sparse = c(0.02, 0.55), top_gene = c("NR3C1", "OXTR"))
+genes <- data.frame(system_id = 1L, outcome = "anx",
+                    gene = c("NR3C1", "FKBP5", "CRH"), z = c(3.4, -1.1, 0.6),
+                    n_probes = c(6L, 4L, 3L), p_adj = c(0.008, 0.51, 0.88),
+                    selected = c(TRUE, FALSE, FALSE))
+probes <- data.frame(system_id = 1L, outcome = "anx", gene = "NR3C1",
+                     probe = paste0("cg", 1:6), se = rep(.08, 6),
+                     b = c(.21, .18, .09, -.14, -.20, .16),
+                     d = c(-1, -1, -1, 1, 1, -1))
+
+out <- dmsa_report_panels(systems, genes, probes, outdir = tempfile())
+out[, c("panel", "system_id", "outcome")]
+}

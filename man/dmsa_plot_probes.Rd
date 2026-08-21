@@ -48,9 +48,26 @@ so the boundary drawn is at \code{alpha/2} on each arm.}
 
 \item{width, height, res}{png dimensions.}
 }
+\value{
+Called for its side effect of drawing a plot on the active
+  graphics device. Returns \code{NULL} invisibly.
+}
 \description{
 The panel that declares a direction. Each probe's slope is reflected
 according to its \code{cpgdirection} call so that every probe is read on one
 axis; reflected probes are drawn as open symbols and the convention is
 printed under the title.
+}
+\examples{
+## Every probe is read on one axis. A CpG whose methylation predicts HIGHER
+## expression (d = +1) is reflected, so positive always means the exposure
+## moved methylation the way that LOWERS this gene's expression.
+pr <- data.frame(
+  gene  = "NR3C1",
+  probe = paste0("cg", 10001:10006),
+  b     = c(-0.021, -0.014, 0.018, -0.009, 0.026, -0.017),
+  se    = c(0.008, 0.007, 0.009, 0.006, 0.010, 0.008),
+  d     = c(-1, -1, 1, -1, 1, -1))
+dmsa_plot_probes(pr, gene_summary = data.frame(gene = "NR3C1", z = -2.9),
+                 title = "HPA axis", file = tempfile(fileext = ".png"))
 }

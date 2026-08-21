@@ -18,3 +18,12 @@ data.frame with \code{gene} and \code{w_g}, or NULL if the bundle
 \description{
 Polarity table for one system, in the form dmsa_align() wants
 }
+\examples{
+f <- tempfile(fileext = ".csv")
+dmsa_reference_template(f)
+ref <- dmsa_reference_csv(f, quiet = TRUE)
+## w_g is the gene's sign toward its system's activation tone: +1 raises it,
+## -1 opposes it. dmsa_align() multiplies w_g by each CpG's
+## methylation-to-expression direction to get the probe's aligned sign.
+dmsa_polarity_for(ref, "HPA axis")
+}

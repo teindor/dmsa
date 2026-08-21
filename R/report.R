@@ -45,6 +45,17 @@
 #' @param file Optional png path. If \code{NULL} draws to the current device.
 #' @param width,height,res png dimensions.
 #' @return Invisibly, the plotted data frame.
+#' @examples
+#' ## Distance from the diagonal says how concentrated a system's response is:
+#' ## strong on the sparse arm only means the signal sits in a single gene.
+#' sys <- data.frame(
+#'   system   = c("HPA axis", "Oxytocin", "Serotonin", "Inflammation"),
+#'   outcome  = "PTSD severity",
+#'   p_dense  = c(0.0004, 0.08, 0.41, 0.62),
+#'   p_sparse = c(0.0012, 0.0003, 0.33, 0.55),
+#'   primary  = c(TRUE, TRUE, FALSE, FALSE),
+#'   top_gene = c("NR3C1", "OXTR", "TPH2", "IL6"))
+#' dmsa_plot_systems(sys, file = tempfile(fileext = ".png"))
 #' @export
 dmsa_plot_systems <- function(systems, alpha = .05, file = NULL,
                               width = 1500, height = 1400, res = 190) {
@@ -99,6 +110,17 @@ dmsa_plot_systems <- function(systems, alpha = .05, file = NULL,
 #'   the multiplicity-adjusted thresholds.
 #' @param title System label.
 #' @inheritParams dmsa_plot_systems
+#' @return Called for its side effect of drawing a plot on the active
+#'   graphics device. Returns \code{NULL} invisibly.
+#' @examples
+#' set.seed(1)
+#' genes <- data.frame(gene = paste0("G", 1:8), n_probes = sample(3:9, 8, TRUE),
+#'                     z = c(rnorm(7), 3.6))
+#' genes$p_adj <- 2 * pnorm(-abs(genes$z))
+#' ## the permutation null of max|z| over this same family of genes
+#' null_max <- apply(matrix(rnorm(200 * 8), 200, 8), 1, function(r) max(abs(r)))
+#' dmsa_plot_genes(genes, null_max = null_max, title = "HPA axis",
+#'                 file = tempfile(fileext = ".png"))
 #' @export
 dmsa_plot_genes <- function(genes, null_max = NULL, title = "", alpha = .05,
                             file = NULL, width = 1500, height = 1500,
@@ -179,6 +201,20 @@ dmsa_plot_genes <- function(genes, null_max = NULL, title = "", alpha = .05,
 #' @param axis_label Overrides the x-axis label.
 #' @param title System label.
 #' @inheritParams dmsa_plot_systems
+#' @return Called for its side effect of drawing a plot on the active
+#'   graphics device. Returns \code{NULL} invisibly.
+#' @examples
+#' ## Every probe is read on one axis. A CpG whose methylation predicts HIGHER
+#' ## expression (d = +1) is reflected, so positive always means the exposure
+#' ## moved methylation the way that LOWERS this gene's expression.
+#' pr <- data.frame(
+#'   gene  = "NR3C1",
+#'   probe = paste0("cg", 10001:10006),
+#'   b     = c(-0.021, -0.014, 0.018, -0.009, 0.026, -0.017),
+#'   se    = c(0.008, 0.007, 0.009, 0.006, 0.010, 0.008),
+#'   d     = c(-1, -1, 1, -1, 1, -1))
+#' dmsa_plot_probes(pr, gene_summary = data.frame(gene = "NR3C1", z = -2.9),
+#'                  title = "HPA axis", file = tempfile(fileext = ".png"))
 #' @export
 dmsa_plot_probes <- function(probes, invert = c("+1", "-1", "none"),
                              gene_summary = NULL,
@@ -294,6 +330,22 @@ dmsa_plot_probes <- function(probes, invert = c("+1", "-1", "none"),
 #' @inheritParams dmsa_plot_systems
 #' @inheritParams dmsa_plot_probes
 #' @return Invisibly, a data frame of the files written.
+#' @examples
+#' ## one system fires, so it gets a gene panel and a probe panel of its own
+#' systems <- data.frame(system_id = 1:2, system = c("HPA axis", "Oxytocin"),
+#'                       outcome = "anx", p_dense = c(0.004, 0.40),
+#'                       p_sparse = c(0.02, 0.55), top_gene = c("NR3C1", "OXTR"))
+#' genes <- data.frame(system_id = 1L, outcome = "anx",
+#'                     gene = c("NR3C1", "FKBP5", "CRH"), z = c(3.4, -1.1, 0.6),
+#'                     n_probes = c(6L, 4L, 3L), p_adj = c(0.008, 0.51, 0.88),
+#'                     selected = c(TRUE, FALSE, FALSE))
+#' probes <- data.frame(system_id = 1L, outcome = "anx", gene = "NR3C1",
+#'                      probe = paste0("cg", 1:6), se = rep(.08, 6),
+#'                      b = c(.21, .18, .09, -.14, -.20, .16),
+#'                      d = c(-1, -1, -1, 1, 1, -1))
+#'
+#' out <- dmsa_report_panels(systems, genes, probes, outdir = tempfile())
+#' out[, c("panel", "system_id", "outcome")]
 #' @export
 dmsa_report_panels <- function(systems, genes, probes, nulls = NULL, outdir = ".",
                         alpha = .05, invert = "+1",

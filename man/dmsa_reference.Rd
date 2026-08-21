@@ -39,3 +39,15 @@ An object of class \code{dmsa_reference}.
 \description{
 Construct a DMSA reference bundle
 }
+\examples{
+## One row per gene-within-system, a sign per gene, and the anchor genes that
+## fix which way "more activation" points for each system.
+sys <- data.frame(gene = c("CRH", "POMC", "NR3C1", "OXT", "OXTR"),
+                  system_id = c("1", "1", "1", "2", "2"),
+                  system = c(rep("HPA axis", 3), rep("Oxytocin", 2)))
+pol <- data.frame(gene = sys$gene, system_id = sys$system_id,
+                  w_g = c(1, 1, -1, 1, 0.6))
+anc <- data.frame(system_id = c("1", "2"), gene = c("CRH", "OXT"))
+dmsa_reference(sys, pol, anc, anchor_method = "curated", name = "toy",
+               version = "0.1")
+}

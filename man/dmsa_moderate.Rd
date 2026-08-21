@@ -59,3 +59,18 @@ An object of class \code{dmsa_moderate}.
 \description{
 Moderated DMSA (mDMSA)
 }
+\examples{
+set.seed(1)
+n <- 100; probes <- paste0("cg", 1:6)
+dat <- data.frame(sex_c = rep(c(-.5, .5), length.out = n),
+                  chip = rep(1:10, each = 10),
+                  cID = rep(seq_len(n / 2), each = 2), mod = rnorm(n))
+dat[probes] <- plogis(matrix(rnorm(n * 6), n, 6))
+al <- dmsa_align(data.frame(cpg = probes, d = rep(c(1, -1), 3),
+                            p_plus = rep(c(.9, .1), 3)),
+                 genes = rep("OXTR", 6), level = "gene")
+dat$out <- 0.6 * dmsa_score(dat, probes, al) * dat$mod + rnorm(n)
+des <- dmsa_design("placeholder", "sex_c", random = "chip", exchangeable = "cID")
+dmsa_moderate(dat, probes, al, outcome = "out", moderator = "mod",
+              design = des, B = 99, engine = "lm", seed = 3)
+}

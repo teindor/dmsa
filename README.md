@@ -19,6 +19,23 @@ invariant to it.
 
 ---
 
+## What DMSA does
+
+Directional Methylation Set Analysis (DMSA) is an R package for gene-set and
+system-level analysis of DNA methylation array data. Before aggregating, DMSA
+aligns each probe's effect to that probe's predicted consequence for gene
+expression, so probes predicted to raise expression and probes predicted to
+lower it are no longer averaged against each other. Each unit's statistic is
+computed from that unit's own probes alone, and multiplicity is corrected only
+within level-local families. In a benchmark where opposing effects cancelled
+under conventional aggregation, DMSA reached 84% power against 7-8% for camera,
+fry and over-representation alternatives, and reported the correct biological
+direction in 100% of its detections. Where the question was instead whether a
+whole panel was associated, DMSA's pooled score stayed silent while globaltest
+correctly rejected.
+
+---
+
 ## Why alignment matters
 
 A CpG in a promoter and a CpG in a gene body carry opposite expression
@@ -52,16 +69,28 @@ direction in 100% of its detections at every ratio.
 remotes::install_github("teindor/dmsa")
 ```
 
-Or from a release tarball:
+To install the exact version used for every number in the manuscript:
 
 ```r
-install.packages("dmsa_1.7.2.tar.gz", repos = NULL, type = "source")
+remotes::install_github("teindor/dmsa@v1.20.2")
 ```
 
-Direction calls come from the companion package
-[`cpgdirection`](https://github.com/teindor/cpgdirection) (Suggests). Everything
-else is base R plus `stats`; `gt`, `lme4`, `lmerTest`, `MASS` and `nnet` are
-optional and used only where noted.
+Or from the archived tarball on Zenodo:
+
+```r
+install.packages("dmsa_1.20.2.tar.gz", repos = NULL, type = "source")
+```
+
+Everything DMSA needs is base R plus `stats` and `data.table`. Direction calls
+(`d`, `p_plus`) can come from any table with those columns; the companion
+package [`cpgdirection`](https://github.com/teindor/cpgdirection)
+([10.5281/zenodo.22024185](https://doi.org/10.5281/zenodo.22024185)) supplies
+them for 3.1 million CpG-gene pairs and is optional. `gt`, `lme4`, `lmerTest`,
+`MASS`, `nnet` and the `Gviz` stack are optional and used only where noted.
+
+Start with `vignette("dmsa")` — a complete worked analysis in which a
+direction-blind test reads null and DMSA recovers the signal from the same
+data.
 
 ---
 
@@ -213,8 +242,12 @@ described in the manuscript's data availability statement.
 
 See [`CITATION.cff`](CITATION.cff), or:
 
-> Ein-Dor, T. (2026). *dmsa: Directional Methylation Set Analysis* (version
-> 1.7.2). R package.
+> Ein-Dor, T. (2026). *dmsa: Directional Methylation Set Analysis*.
+> Zenodo. https://doi.org/10.5281/zenodo.22023957
+
+That is the **concept DOI**: it always resolves to the current release, so a
+citation made through it does not go stale. To pin one release, v1.20.2 is
+[10.5281/zenodo.22042907](https://doi.org/10.5281/zenodo.22042907).
 
 ---
 

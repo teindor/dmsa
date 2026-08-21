@@ -38,3 +38,14 @@ computed from the (standardised, already winsorised) methylation matrix only.
 Used internally by \code{\link{dmsa_triangulate}}, \code{\link{dmsa_scores}}
 and \code{\link{dmsa_change}} when \code{weighting = "reliability"}.
 }
+\examples{
+set.seed(2)
+n <- 120
+f <- rnorm(n)
+## three probes report the gene's shared axis well, three barely at all
+lam <- c(.8, .8, .8, .1, .1, .1)
+Z <- scale(sapply(lam, function(l) l * f + sqrt(1 - l^2) * rnorm(n)))
+
+## weights come from methylation alone, so the permutation null is untouched
+round(dmsa_relweights(Z, units = rep("NR3C1", 6), mlt = rep(1, 6)), 2)
+}

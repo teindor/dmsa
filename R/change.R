@@ -41,6 +41,19 @@
 #'   of the family (maxT default).
 #' @return data.frame of class "dmsa_change": unit, n, n_probes, b, t, p,
 #'   p_adj; attributes term, role, formula.
+#' @examples
+#' set.seed(5)
+#' n <- 80; g <- rep(c("g1", "g2"), each = 4); P <- length(g)
+#' d <- rep(c(1, -1), length.out = P); E <- rnorm(n); y <- rnorm(n)
+#' M0 <- matrix(rnorm(n * P), n, P)
+#' M1 <- 0.6 * M0 + matrix(rnorm(n * P), n, P)
+#' # plant a change in g1 that tracks y x E through the alignment
+#' M1[, g == "g1"] <- M1[, g == "g1"] + outer(0.5 * y * E, d[g == "g1"])
+#' al <- dmsa_align(data.frame(cpg = paste0("cg", 1:P), d = d,
+#'                             p_plus = ifelse(d > 0, 0.9, 0.1)), genes = g)
+#' dat <- data.frame(y = y, E = E, dEpi = rnorm(n))
+#' dmsa_change(M0, M1, dat, outcome = "y", exposure = "E", units = g,
+#'             alignment = al, covariates = "dEpi", B = 99, seed = 1)
 #' @export
 dmsa_change <- function(M_before, M_after, data, outcome = NULL, exposure,
                         mod2 = NULL, units, alignment, covariates = NULL,

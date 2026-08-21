@@ -1,3 +1,22 @@
+
+## ---------------------------------------------------------------------------
+## OPTIONAL COMPANION PACKAGE
+##
+## `cpgdirection` supplies the direction calls and a CpG coordinate manifest.
+## It is genuinely optional: every path below degrades or names an alternative
+## when it is absent, and dmsa declares no dependency on it, because it is
+## distributed from GitHub and Zenodo rather than from CRAN or Bioconductor
+## (Bioconductor forbids declaring dependencies that its build system cannot
+## install). Resolving it by name at call time rather than with `::` keeps that
+## true statement true for R CMD check as well as for the user.
+## ---------------------------------------------------------------------------
+.cpgd <- function(fun = NULL) {
+  pkg <- "cpgdirection"
+  if (!requireNamespace(pkg, quietly = TRUE)) return(NULL)
+  if (is.null(fun)) return(TRUE)
+  if (!fun %in% getNamespaceExports(pkg)) return(NULL)
+  get(fun, envir = asNamespace(pkg))
+}
 # ============================================================================
 # PROBE COORDINATES WITHOUT BIOCONDUCTOR
 #
@@ -67,16 +86,19 @@ dmsa_probe_coords <- function(probes, file = NULL, url = NULL, cache = NULL,
 
   ## ---- route 0: cpgdirection, already installed ---------------------------
   if (is.null(file) && is.null(url)) {
-    if (!requireNamespace("cpgdirection", quietly = TRUE))
+    if (is.null(.cpgd()))
       stop("no coordinate source. Either install cpgdirection (which you ",
-           "already need for the direction calls), or pass file= / url= with ",
-           "a manifest. Or skip coordinates entirely: dmsa_plot_locus() ",
+           "already need for the direction calls) from ",
+           "https://github.com/teindor/cpgdirection or ",
+           "https://doi.org/10.5281/zenodo.22024185, or pass file= / url= ",
+           "with a manifest. Or skip coordinates entirely: dmsa_plot_locus() ",
            "works without them.", call. = FALSE)
-    if (!"cpgd_cpg_positions" %in% getNamespaceExports("cpgdirection"))
+    .pos <- .cpgd("cpgd_cpg_positions")
+    if (is.null(.pos))
       stop("this cpgdirection has no cpgd_cpg_positions(); upgrade it, or ",
            "pass file= / url=.", call. = FALSE)
     man <- as.data.frame(
-      cpgdirection::cpgd_cpg_positions(), stringsAsFactors = FALSE)
+      .pos(), stringsAsFactors = FALSE)
     return(.coords_match(man, probes, probe_col, chr_col, pos_col,
                          "cpgdirection"))
   }
@@ -131,6 +153,14 @@ dmsa_probe_coords <- function(probes, file = NULL, url = NULL, cache = NULL,
 #' @param coords Result of \code{dmsa_probe_coords()}.
 #' @param path csv path.
 #' @return \code{path}, invisibly.
+#' @examples
+#' ## run the lookup once, then keep the csv with the project
+#' co <- data.frame(probe = c("cg00000029", "cg00000108", "cg00000109"),
+#'                  chr = c("16", "3", "3"),
+#'                  pos = c(53434200, 37417716, 171916037))
+#'
+#' f <- dmsa_write_coords(co, tempfile(fileext = ".csv"))
+#' utils::read.csv(f)
 #' @export
 dmsa_write_coords <- function(coords, path = "probe_coords.csv") {
   utils::write.csv(coords, path, row.names = FALSE)

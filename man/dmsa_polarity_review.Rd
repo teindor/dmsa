@@ -26,3 +26,11 @@ Three kinds of row should never be used without someone looking at them: a
 sign the curator and a database disagree about, a sign no evidence could
 settle, and a non-zero sign held at low confidence. This returns them.
 }
+\examples{
+## The three kinds of row nobody should use unseen: a database contradiction,
+## a sign no evidence settles, and a non-zero sign held at low confidence.
+flagged <- dmsa_polarity_review(dmsa_select(systems = "hpa"))
+table(flagged$review_flag)
+## a disagreement is a framing call the analyst has to make, not a bug
+dmsa_polarity_review(which = "disagreement")$gene
+}

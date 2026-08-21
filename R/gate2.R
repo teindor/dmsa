@@ -53,6 +53,21 @@
 #' @param family_correction Character. Family-wise correction applied inside each level-local family: \code{"maxT"} (default) Westfall-Young step-down on the strength scale, or \code{"minP"} step-down on marginal p-values. The choice is consequential and should be fixed in advance; see the package vignette and \code{REPRODUCE.md}.
 #'   sparse arm may look straight at.
 #' @return Object of class \code{dmsa_gate}.
+#' @examples
+#' set.seed(1)
+#' n <- 60; probes <- paste0("cg", 1:6)
+#' map <- data.frame(gene = rep(c("OXTR", "AVP"), each = 3), probe = probes)
+#' al <- dmsa_align(data.frame(cpg = probes, d = rep(c(1, -1), 3),
+#'                             p_plus = rep(c(.9, .1), 3)),
+#'                  genes = map$gene, level = "gene")
+#' d <- data.frame(anx = rnorm(n), age = rnorm(n),
+#'                 cID = rep(seq_len(n / 2), each = 2))
+#' ## the probes are the RESPONSES: their aligned coefficients are pooled,
+#' ## so cross-probe concordance is what carries the evidence
+#' M <- matrix(rnorm(n * 6), n, 6) + outer(0.3 * d$anx, 2 * al$p_s_plus - 1)
+#' dmsa_levels(M, d, rhs = c("anx", "age"), term = "anx", map = map,
+#'             alignment = al, roots = c("OXTR", "AVP"), block = d$cID,
+#'             B = 99, seed = 1)
 #' @export
 dmsa_levels <- function(M, data, rhs, term, map, alignment, roots, block = NULL,
                       alpha = 0.05, B = 1999, winsor = 3,
@@ -62,7 +77,15 @@ dmsa_levels <- function(M, data, rhs, term, map, alignment, roots, block = NULL,
                       sparse_reach = "children", seed = NULL) {
   method <- match.arg(method); gate <- match.arg(gate)
   family_correction <- match.arg(family_correction)
-  if (!is.null(seed)) set.seed(seed)
+  if (!is.null(seed)) {
+    ## restore the caller's RNG state on exit: a permutation seed is for
+    ## reproducing THIS result, not for silently reseeding the user's session.
+    .old_seed <- if (exists(".Random.seed", envir = globalenv()))
+      get(".Random.seed", envir = globalenv()) else NULL
+    on.exit(if (!is.null(.old_seed))
+      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+    set.seed(seed)
+  }
   M <- as.matrix(M); data <- as.data.frame(data)
   map <- as.data.frame(map, stringsAsFactors = FALSE); levs <- names(map)
   if (nrow(map) != ncol(M)) stop("map must have one row per column of M",

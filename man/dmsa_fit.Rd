@@ -51,3 +51,17 @@ An object of class \code{dmsa_fit}.
 \description{
 Fit, pool and permute a DMSA set test under a declared design
 }
+\examples{
+set.seed(1)
+n <- 80; K <- 6; x <- rnorm(n); d <- sample(c(-1, 1), K, TRUE)
+M <- matrix(rnorm(n * K), n, K) + outer(x, 0.5 * d)
+dat <- data.frame(cID = rep(1:40, each = 2), chip = rep(1:10, each = 8),
+                  x = x, sex_c = rep(c(-0.5, 0.5), 40))
+probes <- paste0("cg", 1:K); dat[probes] <- 1 / (1 + 2^(-M))
+al <- dmsa_align(data.frame(cpg = probes, d = d,
+                            p_plus = ifelse(d > 0, 0.95, 0.05)),
+                 genes = rep(c("g1", "g2"), each = 3))
+des <- dmsa_design("x", "sex_c", random = c("chip", "cID"),
+                   exchangeable = "cID")
+dmsa_fit(dat, probes, al, des, B = 99, engine = "lm", seed = 1)
+}

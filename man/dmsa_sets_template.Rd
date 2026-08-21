@@ -18,3 +18,11 @@ The paths written, invisibly.
 \description{
 Write a cascade template and the instructions for building one
 }
+\examples{
+p <- tempfile(fileext = ".csv")
+dmsa_sets_template(p)
+
+## the .md alongside it states the rules the validator enforces
+basename(c(p, sub("\\\\.csv$", ".md", p)))
+utils::read.csv(p)[, c("system_short", "module_id", "gene", "cpg")]
+}

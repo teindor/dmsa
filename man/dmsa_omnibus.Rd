@@ -32,3 +32,17 @@ compared against. Use it as a screen, or when the levels have no ordering and
 no reference level is defensible - and report \code{dmsa_contrasts()}
 alongside it.
 }
+\examples{
+set.seed(1)
+n <- 90
+d <- data.frame(style = factor(sample(c("secure", "anxious", "avoidant"),
+                                      n, TRUE)),
+                age = rnorm(n), cID = rep(seq_len(n / 2), each = 2))
+Y <- matrix(plogis(rnorm(n * 8)), n, 8)     # beta values for 8 probes
+des <- dmsa_design(focal = "style", fixed = "age", exchangeable = "cID")
+## three attachment styles with no defensible reference level: the pooled
+## F asks only whether the factor moves the set, and gives up the direction
+o <- dmsa_omnibus(d, Y, des, B = 99, seed = 5)
+round(o$p_perm, 3)
+o$directional    # always FALSE: a pooled F on 2 df has no sign
+}

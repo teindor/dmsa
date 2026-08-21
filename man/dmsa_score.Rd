@@ -33,3 +33,18 @@ aligned multiplier (\code{s_j} for fixed-sign, \code{E[s_j]} for
 expected-sign), then standardised. Positive = the set reads as higher
 system activation tone.
 }
+\examples{
+set.seed(1)
+n <- 80
+d <- rep(c(1, -1), each = 3)      # methylation-to-expression direction
+f <- rnorm(n)                     # the tone the gene actually tracks
+probes <- paste0("cg", 1:6)
+dat <- as.data.frame(sapply(d, function(dj) plogis(dj * .8 * f + rnorm(n))))
+names(dat) <- probes
+
+al <- dmsa_align(data.frame(cpg = probes, d = d, p_plus = ifelse(d > 0, .9, .1)),
+                 genes = rep("FKBP5", 6), level = "gene")
+## one standardised tone per subject, despite the probes opposing each other
+dat$tone <- dmsa_score(dat, probes, al)
+round(cor(dat$tone, f), 2)
+}

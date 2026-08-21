@@ -292,6 +292,13 @@ print.dmsa_polarity <- function(x, ...) {
 #'   a framing choice only the analyst can settle), \code{"unresolved"} or
 #'   \code{"low_confidence"}.
 #' @return data.frame of class \code{dmsa_polarity_review}.
+#' @examples
+#' ## The three kinds of row nobody should use unseen: a database contradiction,
+#' ## a sign no evidence settles, and a non-zero sign held at low confidence.
+#' flagged <- dmsa_polarity_review(dmsa_select(systems = "hpa"))
+#' table(flagged$review_flag)
+#' ## a disagreement is a framing call the analyst has to make, not a bug
+#' dmsa_polarity_review(which = "disagreement")$gene
 #' @export
 dmsa_polarity_review <- function(x = "alpha",
                                  which = c("all", "disagreement",
@@ -352,6 +359,15 @@ print.dmsa_polarity_review <- function(x, n = 20, ...) {
 #' @param sets Optional cascade to check coverage against.
 #' @param verbose Print the report. Default \code{TRUE}.
 #' @return Invisibly, a list with \code{ok} and one entry per check.
+#' @examples
+#' ## An anchor gene is what defines "more activation" for its system, so an
+#' ## anchor that brakes its own system is a contradiction, not a small error.
+#' cand <- data.frame(system_id = "HPA", gene = c("CRH", "POMC", "NR3C1"),
+#'                    w_g = c(-1, 1, -1), anchor = c(TRUE, FALSE, FALSE),
+#'                    w_g_source = "curated")
+#' chk <- dmsa_polarity_check(cand)
+#' chk$ok
+#' dmsa_polarity_check("alpha", verbose = FALSE)$ok
 #' @export
 dmsa_polarity_check <- function(x = "alpha", sets = NULL, verbose = TRUE) {
   pol <- try(dmsa_polarity(x), silent = TRUE)
@@ -605,6 +621,12 @@ dmsa_polarity_fetch <- function(sets, anchors = NULL,
 #' Which public resources DMSA can draft polarity from, and what each is good for
 #'
 #' @return data.frame of resource name, endpoint template and caveat.
+#' @examples
+#' src <- dmsa_polarity_sources()
+#' src[c("source", "resource")]
+#' ## the trap worth knowing about: two of OmniPath's inputs record an
+#' ## activating sign by default when the direction is actually unknown
+#' src$caveat[src$source == "omnipath"]
 #' @export
 dmsa_polarity_sources <- function() {
   d <- data.frame(

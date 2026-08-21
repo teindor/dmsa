@@ -17,3 +17,12 @@ dmsa_write_coords(coords, path = "probe_coords.csv")
 \description{
 Save a coordinate table so the lookup never has to be repeated
 }
+\examples{
+## run the lookup once, then keep the csv with the project
+co <- data.frame(probe = c("cg00000029", "cg00000108", "cg00000109"),
+                 chr = c("16", "3", "3"),
+                 pos = c(53434200, 37417716, 171916037))
+
+f <- dmsa_write_coords(co, tempfile(fileext = ".csv"))
+utils::read.csv(f)
+}

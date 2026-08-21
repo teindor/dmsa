@@ -25,3 +25,14 @@ Efron-style two-group model on z-values: the null is fitted to the central
 mass, the alternative is a wider normal, and \code{pi0} comes from the
 central proportion. Returns one local fdr per unit.
 }
+\examples{
+set.seed(1)
+## 300 null genes and 30 carrying a real aligned effect
+z <- c(rnorm(300), rnorm(30, mean = 4))
+lfdr <- dmsa_lfdr(z)
+round(quantile(lfdr, c(0, .5, 1)), 3)
+mean(lfdr[301:330]) < mean(lfdr[1:300])
+## too few units to fit the two-group model: NULL asks the caller to
+## fall back to a frequentist rule rather than guess
+is.null(dmsa_lfdr(rnorm(10)))
+}

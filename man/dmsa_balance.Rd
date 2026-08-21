@@ -18,3 +18,13 @@ align, on which side of the activation axis. A system whose brake genes
 have no usable probes silently degrades to an activation-gene test -
 this table is how that is caught and reported.
 }
+\examples{
+dcall <- data.frame(cpg = paste0("p", 1:4), d = c(1, -1, 1, NA),
+                    p_plus = c(0.9, 0.1, 0.8, NA))
+genes <- c("CRH", "POMC", "AVPR2", "NR3C1")
+pol <- data.frame(gene = genes, w_g = c(1, 1, 0, -1))
+al <- dmsa_align(dcall, genes, level = "system", polarity = pol)
+# the only brake gene abstained, so this "system" test is really an
+# activation-gene test - which is what the balance table makes visible
+dmsa_balance(al)
+}

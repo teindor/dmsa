@@ -462,6 +462,20 @@
 #' @param w_floor Numeric. Lower bound applied to reliability weights before normalisation, so a single poorly behaved probe cannot be driven to zero influence. Ignored when \code{weighting = "flat"}.
 #'   records it; FALSE: strict errors instead.
 #' @return object of class \code{dmsa_frame}.
+#' @examples
+#' set.seed(42)
+#' map <- data.frame(gene = rep(paste0("G", 1:3), each = 3), system_id = 1L,
+#'                   system = "Sim system")
+#' map$probe <- sprintf("cg%07d", seq_len(nrow(map)))
+#' map$column <- paste0(map$probe, "_", map$gene)
+#' map$best_direction <- rep(c(-1, 1), length.out = nrow(map))
+#' map$p_plus <- ifelse(map$best_direction > 0, 0.9, 0.1)
+#' d <- data.frame(out1 = rnorm(60), cov1 = rnorm(60),
+#'                 cID = rep(1:30, each = 2))
+#' sig <- 0.5 * outer(d$out1, map$best_direction * (map$gene == "G1"))
+#' d[map$column] <- plogis(matrix(rnorm(60 * nrow(map)), 60) + sig)
+#' dmsa_frame(d, map = map, outcome = "out1", covariates = "cov1",
+#'            random_effects = "cID", B = 99, outdir = tempfile("dmsa_ex"))
 #' @export
 dmsa_frame <- function(data, methylation = NULL, map = "alpha",
                        system = TRUE, module = FALSE, gene = TRUE,
@@ -1126,6 +1140,18 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
 #'
 #' @param frame a \code{dmsa_frame}.
 #' @return the frame's corrections table, invisibly (printed first).
+#' @examples
+#' set.seed(1)
+#' map <- data.frame(gene = "NR3C1", system_id = 1L, system = "HPA axis",
+#'                   probe = c("cg01", "cg02"), column = c("cg01", "cg02"),
+#'                   best_direction = c(-1, 1), p_plus = c(.1, .9))
+#' dat <- data.frame(anx = rnorm(40), cov1 = rnorm(40), cID = rep(1:20, each = 2),
+#'                   cg01 = plogis(rnorm(40)), cg02 = plogis(rnorm(40)))
+#' fr <- dmsa_frame(dat, map = map, outcome = "anx", covariates = "cov1",
+#'                  B = 49, seed = 1, outdir = tempfile())
+#'
+#' ## beta values were detected and converted; every such fix is on the record
+#' dmsa_test_drive(fr)
 #' @export
 dmsa_test_drive <- function(frame) {
   stopifnot(inherits(frame, "dmsa_frame"))

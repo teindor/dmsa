@@ -62,3 +62,19 @@ Object of class \code{dmsa_gate}.
 \description{
 Gated hierarchical DMSA on the pooled aligned statistic
 }
+\examples{
+set.seed(1)
+n <- 60; probes <- paste0("cg", 1:6)
+map <- data.frame(gene = rep(c("OXTR", "AVP"), each = 3), probe = probes)
+al <- dmsa_align(data.frame(cpg = probes, d = rep(c(1, -1), 3),
+                            p_plus = rep(c(.9, .1), 3)),
+                 genes = map$gene, level = "gene")
+d <- data.frame(anx = rnorm(n), age = rnorm(n),
+                cID = rep(seq_len(n / 2), each = 2))
+## the probes are the RESPONSES: their aligned coefficients are pooled,
+## so cross-probe concordance is what carries the evidence
+M <- matrix(rnorm(n * 6), n, 6) + outer(0.3 * d$anx, 2 * al$p_s_plus - 1)
+dmsa_levels(M, d, rhs = c("anx", "age"), term = "anx", map = map,
+            alignment = al, roots = c("OXTR", "AVP"), block = d$cID,
+            B = 99, seed = 1)
+}

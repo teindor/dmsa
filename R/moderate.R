@@ -19,6 +19,20 @@
 #' @param beta_input TRUE if \code{probes} hold beta values.
 #' @return numeric vector, one value per row of \code{data} (NA where the
 #'   probes are missing).
+#' @examples
+#' set.seed(1)
+#' n <- 80
+#' d <- rep(c(1, -1), each = 3)      # methylation-to-expression direction
+#' f <- rnorm(n)                     # the tone the gene actually tracks
+#' probes <- paste0("cg", 1:6)
+#' dat <- as.data.frame(sapply(d, function(dj) plogis(dj * .8 * f + rnorm(n))))
+#' names(dat) <- probes
+#'
+#' al <- dmsa_align(data.frame(cpg = probes, d = d, p_plus = ifelse(d > 0, .9, .1)),
+#'                  genes = rep("FKBP5", 6), level = "gene")
+#' ## one standardised tone per subject, despite the probes opposing each other
+#' dat$tone <- dmsa_score(dat, probes, al)
+#' round(cor(dat$tone, f), 2)
 #' @export
 dmsa_score <- function(data, probes, alignment, method = c("expected", "fixed"),
                        beta_input = TRUE) {
@@ -55,6 +69,20 @@ dmsa_score <- function(data, probes, alignment, method = c("expected", "fixed"),
 #' @param check Run the design check (default TRUE).
 #' @param seed Optional integer.
 #' @return An object of class \code{dmsa_moderate}.
+#' @examples
+#' set.seed(1)
+#' n <- 100; probes <- paste0("cg", 1:6)
+#' dat <- data.frame(sex_c = rep(c(-.5, .5), length.out = n),
+#'                   chip = rep(1:10, each = 10),
+#'                   cID = rep(seq_len(n / 2), each = 2), mod = rnorm(n))
+#' dat[probes] <- plogis(matrix(rnorm(n * 6), n, 6))
+#' al <- dmsa_align(data.frame(cpg = probes, d = rep(c(1, -1), 3),
+#'                             p_plus = rep(c(.9, .1), 3)),
+#'                  genes = rep("OXTR", 6), level = "gene")
+#' dat$out <- 0.6 * dmsa_score(dat, probes, al) * dat$mod + rnorm(n)
+#' des <- dmsa_design("placeholder", "sex_c", random = "chip", exchangeable = "cID")
+#' dmsa_moderate(dat, probes, al, outcome = "out", moderator = "mod",
+#'               design = des, B = 99, engine = "lm", seed = 3)
 #' @export
 dmsa_moderate <- function(data, probes, alignment, outcome, moderator, design,
                           method = c("expected", "fixed"),
@@ -63,7 +91,15 @@ dmsa_moderate <- function(data, probes, alignment, outcome, moderator, design,
                           beta_input = TRUE, check = TRUE, seed = NULL) {
   method <- match.arg(method); engine <- match.arg(engine)
   stopifnot(inherits(design, "dmsa_design"))
-  if (!is.null(seed)) set.seed(seed)
+  if (!is.null(seed)) {
+    ## restore the caller's RNG state on exit: a permutation seed is for
+    ## reproducing THIS result, not for silently reseeding the user's session.
+    .old_seed <- if (exists(".Random.seed", envir = globalenv()))
+      get(".Random.seed", envir = globalenv()) else NULL
+    on.exit(if (!is.null(.old_seed))
+      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+    set.seed(seed)
+  }
   data <- as.data.frame(data)
 
   bad <- intersect(design$forbid, c(outcome, moderator))

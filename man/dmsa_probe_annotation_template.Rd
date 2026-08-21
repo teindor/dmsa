@@ -27,6 +27,13 @@ plain-text manifest with base R only, and
 Run the written script once; it produces a csv with \code{probe, chr, pos,
 gene_region, island} that \code{dmsa_plot_locus()} consumes.
 }
+\examples{
+f <- tempfile(fileext = ".R")
+dmsa_probe_annotation_template(f, array = "EPIC")
+## the script is not run here: it installs and queries the minfi annotation
+## packages. dmsa_probe_coords() does the same job from a plain manifest.
+head(readLines(f), 5)
+}
 \seealso{
 \code{\link{dmsa_probe_coords}}
 }

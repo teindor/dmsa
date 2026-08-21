@@ -106,6 +106,13 @@ print.dmsa_design <- function(x, ...) {
 #'   the immune-cell fraction, its compositional complement). Recorded in the
 #'   returned object so it shows up in print and cannot be silent.
 #' @return A \code{dmsa_design}.
+#' @examples
+#' d <- alpha_design(1, focal = "IC_T1_c")
+#' d
+#' # builds 2 and 3 are longitudinal: the contract asks for the time interaction
+#' alpha_design(2, focal = "time:BSI_Total_c")
+#' # a deviation from the contract is recorded on the object, never silent
+#' alpha_design(1, focal = "IC_T1_c", drop = "Epi_T1")$dropped
 #' @export
 alpha_design <- function(build, focal, drop = character()) {
   build <- as.integer(build)
@@ -164,6 +171,18 @@ alpha_design <- function(build, focal, drop = character()) {
 #'   warnings and the checks are still returned.
 #' @return Invisibly, a list with \code{n}, \code{problems}, \code{notes} and
 #'   the per-term diagnostics.
+#' @examples
+#' set.seed(1)
+#' d <- data.frame(exposure = rnorm(80), sex_c = rep(c(-0.5, 0.5), 40),
+#'                 age = rnorm(80, 40, 5), Fib = 0,
+#'                 chip = rep(1:10, each = 8), cID = rep(1:40, each = 2))
+#' des <- dmsa_design("exposure", c("sex_c", "age"),
+#'                    random = c("chip", "cID"), exchangeable = "cID")
+#' dmsa_check_design(des, d)$n
+#' # Fib is constant in this subsample: absorbed silently by lm, caught here
+#' bad <- dmsa_design("exposure", c("sex_c", "Fib"), random = "chip",
+#'                    exchangeable = "cID")
+#' dmsa_check_design(bad, d, strict = FALSE)$problems
 #' @export
 dmsa_check_design <- function(design, data, strict = TRUE) {
   stopifnot(inherits(design, "dmsa_design"))

@@ -12,3 +12,10 @@ data.frame of resource name, endpoint template and caveat.
 \description{
 Which public resources DMSA can draft polarity from, and what each is good for
 }
+\examples{
+src <- dmsa_polarity_sources()
+src[c("source", "resource")]
+## the trap worth knowing about: two of OmniPath's inputs record an
+## activating sign by default when the direction is actually unknown
+src$caveat[src$source == "omnipath"]
+}

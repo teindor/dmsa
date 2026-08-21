@@ -56,3 +56,17 @@ An object of class \code{dmsa_cascade}.
 \description{
 Gated hierarchical DMSA with level-specific inference
 }
+\examples{
+set.seed(1)
+tree <- expand.grid(probe = 1:3, gene = 1:2, system = 1:4)
+tree <- tree[, c("system", "gene")]      # outermost level first
+P <- nrow(tree); n <- 60; x <- rnorm(n)
+M <- matrix(rnorm(n * P), n, P) + outer(x, 0.9 * (tree$system == 1))
+al <- dmsa_align(data.frame(cpg = paste0("p", 1:P), d = 1, p_plus = 0.95),
+                 genes = paste0("g", tree$gene), level = "gene")
+fit <- lm(M ~ x); b <- coef(fit)["x", ]
+se <- sqrt(colSums(residuals(fit)^2) / (n - 2) / sum((x - mean(x))^2))
+nulls <- dmsa_cascade_null(b, se, al, tree, exposure = x, M = M, B = 49)
+cs <- dmsa_cascade(b, se, al, tree, nulls)
+cs$tables$system
+}

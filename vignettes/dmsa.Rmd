@@ -1,0 +1,150 @@
+---
+title: "Reading direction from methylation: a first DMSA analysis"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Reading direction from methylation: a first DMSA analysis}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(dmsa)
+```
+
+## The problem this package exists to solve
+
+A CpG in a promoter and a CpG in a gene body carry opposite consequences for
+expression when their methylation moves the same way. Conventional set-level
+methods average them, so a gene whose probes move *coherently on the expression
+scale* can cancel itself to nothing on the methylation scale.
+
+This is not a power problem that a larger sample fixes. At a 50/50 composition
+the cancellation is exact and a direction-blind test is null by construction.
+
+We can build exactly that situation and watch it happen.
+
+```{r simulate}
+set.seed(1)
+
+n <- 300L                      # participants
+K <- 12L                       # probes in the gene
+f <- rnorm(n)                  # the latent process the gene actually tracks
+
+# Half the probes are predicted to RAISE expression when methylated (d = +1),
+# half to LOWER it (d = -1). On the expression scale they agree. On the
+# methylation scale they point in opposite directions.
+d <- rep(c(1, -1), each = K / 2)
+
+M <- sapply(seq_len(K), function(j) d[j] * 0.55 * f + sqrt(1 - 0.55^2) * rnorm(n))
+colnames(M) <- sprintf("cg%04d", seq_len(K))
+
+dat <- data.frame(y = 0.35 * f + rnorm(n), cv = rnorm(n))
+```
+
+## What a direction-blind test sees
+
+Average the probes and test the average. This is, in essence, what a
+composite-score method does when it ignores direction.
+
+```{r blind}
+blind <- summary(lm(rowMeans(M) ~ y + cv, data = dat))$coefficients["y", ]
+round(blind, 4)
+```
+
+The estimate sits near zero and the *p*-value near 1. The signal did not fail to
+exist; it was destroyed in the averaging step.
+
+## The alignment step
+
+`dmsa_align()` takes the per-probe direction calls and turns them into a
+multiplier. `d` is the methylation-to-expression direction, `p_plus` the
+confidence that the direction is positive. At the gene level no polarity is
+applied; at the system level each gene is additionally signed against its
+system's activation tone.
+
+```{r align}
+direction <- data.frame(
+  cpg    = colnames(M),
+  d      = d,
+  p_plus = ifelse(d > 0, 0.9, 0.1)
+)
+
+al <- dmsa_align(direction, genes = rep("GENE1", K), level = "gene")
+al[, c("probe", "d", "s", "p_s_plus", "usable")]
+```
+
+`s` is the sign each probe contributes once it is read on the expression scale.
+Every probe now votes the same way, which is what the biology said all along.
+
+## Running the three lenses
+
+`dmsa_triangulate()` tests the unit through three pre-specified lenses on one
+shared permutation stream: **coherence** (pooled aligned burden, which rewards
+cross-probe sign concordance), **composite** (the unit's aligned score as a
+single regressor), and **diffuse** (a confidence-weighted quadratic score). An
+ACAT omnibus combines them, and because ACAT is valid under arbitrary
+dependence, hedging across the three costs no multiplicity.
+
+```{r triangulate}
+res <- dmsa_triangulate(
+  M         = M,
+  data      = dat,
+  rhs       = c("y", "cv"),
+  term      = "y",
+  units     = rep("GENE1", K),
+  alignment = al,
+  B         = 499,
+  seed      = 1
+)
+
+res[, c("unit", "n_probes", "concordance", "direction",
+        "p_coherence", "p_composite", "p_omnibus")]
+```
+
+The same data that read as null a moment ago now carry the signal. Nothing about
+the measurements changed — only whether the aggregation step was told which way
+each probe points. `concordance` of 1.00 says every usable probe agreed once
+aligned, and `direction` gives the sign of the effect on the expression scale.
+
+Permutation *p*-values have granularity `1/(B + 1)`, so at `B = 499` the
+smallest attainable value is 0.002 and the numbers above are at that floor.
+Raise `B` for a finer resolution; the manuscript uses `B = 1999`.
+
+## Which lens fires is itself a result
+
+The three lenses fail in different ways, so their pattern is informative rather
+than redundant. Coherence rewards a unit whose probes agree in sign; composite
+rewards a unified shift that survives as one regressor; diffuse rewards signal
+spread across many probes whichever way each points. A finding that fires on
+coherence alone has a different shape from one that fires on composite alone,
+and the package reports both rather than collapsing them to a single number.
+
+## What DMSA does not do
+
+Directional alignment buys power against cancellation and costs power elsewhere.
+Where the question is whether a *whole panel* is associated with an outcome, and
+no directional structure is claimed, a quadratic score such as `globaltest`
+detects associations that DMSA's pooled score does not — in the manuscript's
+benchmark, that comparison is one DMSA loses. Alignment is a bet that the
+direction calls carry information. When they do not, the bet costs something.
+
+## Moving to real data
+
+Two things replace the simulation above:
+
+- **Direction calls.** `d` and `p_plus` come from a curated methylation-to-expression
+  map. The companion package `cpgdirection`
+  (<https://github.com/teindor/cpgdirection>, archived at
+  <https://doi.org/10.5281/zenodo.22024185>) supplies them for 3.1 million
+  CpG-gene pairs across four evidence classes, but any table with the same three
+  columns works. `dmsa` does not require it.
+- **The two-call interface.** `dmsa_frame()` declares the design once — outcome,
+  covariates, permutation blocks, the level hierarchy — and `dmsa_report()` runs
+  it and emits figures, machine-readable tables at every level, and a written
+  paragraph stating what was tested and what was controlled. See
+  `?dmsa_frame` for the full argument set.
+
+```{r session}
+sessionInfo()
+```

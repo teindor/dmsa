@@ -84,6 +84,17 @@ and they are ordered along the gene (TSS1500 to 3'UTR) and spaced evenly;
 supply neither and they keep the order you gave. The axis states which of
 the three you got. Nothing else in the figure changes.
 }
+\examples{
+probes <- data.frame(probe = paste0("cg", 1:5), chr = "chr20",
+                     pos = c(3082600, 3082750, 3083050, 3084600, 3084700),
+                     b = c(-.04, .02, .03, -.05, -.06), se = rep(.015, 5),
+                     d = c(-1, 1, 1, -1, -1), p = c(.01, .3, .04, .002, .001))
+## invert = "+1" (the default) reflects the d = +1 probes, so a positive
+## effect always means "moved methylation the way that LOWERS expression"
+out <- dmsa_plot_locus(probes, gene = "AVP", context = "attachment anxiety",
+                       file = tempfile(fileext = ".png"))
+out[, c("probe", "d", "shown", "flipped")]
+}
 \seealso{
 \code{\link{dmsa_gene_model}} to build the model,
   \code{\link{dmsa_plot_locus_gviz}} for the Gviz engine,

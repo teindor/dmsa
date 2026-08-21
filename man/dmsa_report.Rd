@@ -26,3 +26,22 @@ the locked statistics, applies correction ONLY within level-local families,
 runs the always-on brain-bridge post-hoc on surviving probes, and writes
 everything under \code{frame$outdir}.
 }
+\examples{
+set.seed(1)
+map <- data.frame(gene = rep(c("NR3C1", "FKBP5"), each = 2), system_id = 1L,
+                  system = "HPA axis", probe = paste0("cg0", 1:4),
+                  column = paste0("cg0", 1:4), best_direction = c(-1, 1, -1, 1),
+                  p_plus = c(.1, .9, .1, .9))
+dat <- data.frame(anx = rnorm(40), cov1 = rnorm(40), cID = rep(1:20, each = 2))
+## methylation tracks anxiety in each probe's own expression direction
+for (i in 1:4)
+  dat[[map$column[i]]] <- plogis(rnorm(40) + .6 * dat$anx * map$best_direction[i])
+
+## everything lands under outdir; figures and tables are switched off here
+## only to keep the example quick
+fr <- dmsa_frame(dat, map = map, outcome = "anx", covariates = "cov1",
+                 B = 49, seed = 1, outdir = tempfile(),
+                 plots = FALSE, tables = FALSE)
+r <- dmsa_report(fr)
+r$results[, c("level", "unit", "n_probes", "p_omnibus")]
+}

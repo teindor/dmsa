@@ -25,3 +25,16 @@ focal term, a grouping factor with too few levels to estimate, a grouping
 factor aliased with the focal term, and declared independence in data that
 plainly repeats.
 }
+\examples{
+set.seed(1)
+d <- data.frame(exposure = rnorm(80), sex_c = rep(c(-0.5, 0.5), 40),
+                age = rnorm(80, 40, 5), Fib = 0,
+                chip = rep(1:10, each = 8), cID = rep(1:40, each = 2))
+des <- dmsa_design("exposure", c("sex_c", "age"),
+                   random = c("chip", "cID"), exchangeable = "cID")
+dmsa_check_design(des, d)$n
+# Fib is constant in this subsample: absorbed silently by lm, caught here
+bad <- dmsa_design("exposure", c("sex_c", "Fib"), random = "chip",
+                   exchangeable = "cID")
+dmsa_check_design(bad, d, strict = FALSE)$problems
+}

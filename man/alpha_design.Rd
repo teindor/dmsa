@@ -29,3 +29,11 @@ Build 2 and 3 are longitudinal: their contract asks for the
 \code{time x predictor} interaction, so pass e.g.
 \code{focal = "time:BSI_Total_c"}.
 }
+\examples{
+d <- alpha_design(1, focal = "IC_T1_c")
+d
+# builds 2 and 3 are longitudinal: the contract asks for the time interaction
+alpha_design(2, focal = "time:BSI_Total_c")
+# a deviation from the contract is recorded on the object, never silent
+alpha_design(1, focal = "IC_T1_c", drop = "Epi_T1")$dropped
+}

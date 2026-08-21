@@ -175,6 +175,12 @@
 #' @param array \code{"EPIC"} or \code{"450K"}.
 #' @return \code{path}, invisibly.
 #' @seealso \code{\link{dmsa_probe_coords}}
+#' @examples
+#' f <- tempfile(fileext = ".R")
+#' dmsa_probe_annotation_template(f, array = "EPIC")
+#' ## the script is not run here: it installs and queries the minfi annotation
+#' ## packages. dmsa_probe_coords() does the same job from a plain manifest.
+#' head(readLines(f), 5)
 #' @export
 dmsa_probe_annotation_template <- function(path = "get_probe_coords.R",
                                            array = c("EPIC", "450K")) {
@@ -288,6 +294,16 @@ dmsa_probe_annotation_template <- function(path = "get_probe_coords.R",
 #' @seealso \code{\link{dmsa_gene_model}} to build the model,
 #'   \code{\link{dmsa_plot_locus_gviz}} for the Gviz engine,
 #'   \code{\link{dmsa_probe_coords}} for probe positions.
+#' @examples
+#' probes <- data.frame(probe = paste0("cg", 1:5), chr = "chr20",
+#'                      pos = c(3082600, 3082750, 3083050, 3084600, 3084700),
+#'                      b = c(-.04, .02, .03, -.05, -.06), se = rep(.015, 5),
+#'                      d = c(-1, 1, 1, -1, -1), p = c(.01, .3, .04, .002, .001))
+#' ## invert = "+1" (the default) reflects the d = +1 probes, so a positive
+#' ## effect always means "moved methylation the way that LOWERS expression"
+#' out <- dmsa_plot_locus(probes, gene = "AVP", context = "attachment anxiety",
+#'                        file = tempfile(fileext = ".png"))
+#' out[, c("probe", "d", "shown", "flipped")]
 #' @export
 dmsa_plot_locus <- function(probes, gene = "", chrom = NA,
                             gene_start = NA, gene_end = NA,

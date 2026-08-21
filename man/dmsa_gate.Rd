@@ -62,3 +62,18 @@ Object of class \code{dmsa_gate}.
 \description{
 Gated hierarchical DMSA: one score, one model, level-local correction
 }
+\examples{
+set.seed(1)
+n <- 60; probes <- paste0("cg", 1:6)
+map <- data.frame(gene = rep(c("OXTR", "AVP"), each = 3), probe = probes)
+al <- dmsa_align(data.frame(cpg = probes, d = rep(c(1, -1), 3),
+                            p_plus = rep(c(.9, .1), 3)),
+                 genes = map$gene, level = "gene")
+M <- matrix(rnorm(n * 6), n, 6, dimnames = list(NULL, probes))
+d <- data.frame(age = rnorm(n), cID = rep(seq_len(n / 2), each = 2))
+d$y <- as.numeric(scale(M \%*\% (2 * al$p_s_plus - 1))) + rnorm(n)
+## the two genes are the pre-registered family; a probe is corrected
+## inside its own gene only, never against all six
+dmsa_gate(d, M, map, al, y ~ S + age, term = "S", roots = c("OXTR", "AVP"),
+          block = d$cID, B = 99, seed = 1)
+}

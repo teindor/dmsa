@@ -20,3 +20,10 @@ two-sided permutation p with the +1 correction (resolution
 \description{
 Permutation p-value for a DMSA statistic
 }
+\examples{
+set.seed(1)
+null_z <- rnorm(999)          # z from B family-wise permuted datasets
+dmsa_perm_pvalue(3.1, null_z)
+## the +1 correction puts a floor of 1/(B+1) on any permutation p
+dmsa_perm_pvalue(50, null_z)
+}

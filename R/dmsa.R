@@ -8,6 +8,11 @@
 #' Read the Project Alpha gene codebook shipped with the package:
 #' 549 genes assigned to 30 biological systems.
 #' @return data.frame with system_id, system, gene, n_kept, usability
+#' @examples
+#' gs <- alpha_gene_systems()
+#' dim(gs)
+#' length(unique(gs$system_id))
+#' head(gs[, c("system_id", "system", "gene", "n_kept", "usability")], 4)
 #' @export
 alpha_gene_systems <- function() {
   p <- system.file("extdata", "alpha_gene_systems.csv", package = "dmsa")
@@ -24,6 +29,13 @@ alpha_gene_systems <- function() {
 #' STATUS: draft pending PI approval and per-gene citations. Every use
 #' prints a reminder until the table is finalised.
 #' @return data.frame with system_id, system, gene, w_g_draft, role, confidence
+#' @examples
+#' pol <- alpha_polarity()
+#' head(pol[, c("system", "gene", "w_g", "role")], 4)
+#' # CRH drives the HPA axis (w_g = +1); NR3C1 is its brake, so more GR means
+#' # stronger negative feedback and LOWER axis tone (w_g = -1)
+#' pol[pol$gene %in% c("CRH", "NR3C1") & pol$system_id == 2,
+#'     c("gene", "w_g", "role")]
 #' @export
 alpha_polarity <- function() {
   p <- system.file("extdata", "alpha_polarity.csv", package = "dmsa")
@@ -61,6 +73,16 @@ alpha_polarity <- function() {
 #' @return data.frame: probe, gene, d, p_plus, w_g, s (= d * w_g at system
 #'   level, d at gene level), p_s_plus = P(s = +1) (chained), usable
 #'   (logical), and reason for every non-usable probe.
+#' @examples
+#' # d is the CpG -> expression sign, w_g the gene -> system-tone sign.
+#' # A promoter CpG silences NR3C1 (d = -1) and GR is the HPA brake (w_g = -1),
+#' # so the probe votes for HIGHER axis tone: s = d * w_g = +1.
+#' g <- c("CRH", "NR3C1")
+#' dcall <- data.frame(cpg = c("cg_crh", "cg_nr3c1"), d = c(1, -1),
+#'                     p_plus = c(0.9, 0.1))
+#' pol <- data.frame(gene = g, w_g = c(1, -1))
+#' dmsa_align(dcall, genes = g, level = "gene")
+#' dmsa_align(dcall, genes = g, level = "system", polarity = pol)
 #' @export
 dmsa_align <- function(direction, genes,
                        level = c("gene", "system"),
@@ -172,6 +194,16 @@ dmsa_align <- function(direction, genes,
 #'   (default) or all ones is the flat engine.
 #' @return list: estimate (pooled aligned slope), se, z, p_normal,
 #'   n_used, n_excluded, table (per-probe contributions).
+#' @examples
+#' ## Two promoter CpGs in NR3C1: methylation silences the gene (d = -1), and
+#' ## GR is the HPA brake (w_g = -1), so both probes vote for HIGHER axis tone.
+#' calls <- data.frame(cpg = c("cg01", "cg02"), d = c(-1, -1), p_plus = c(.1, .2))
+#' al <- dmsa_align(calls, genes = c("NR3C1", "NR3C1"), level = "system",
+#'                  polarity = data.frame(gene = "NR3C1", w_g = -1))
+#'
+#' tt <- dmsa_test(b = c(0.28, 0.19), se = c(0.09, 0.08), al, method = "expected")
+#' tt[c("estimate", "se", "z", "p_normal", "n_used")]
+#' tt$table
 #' @export
 dmsa_test <- function(b, se, alignment,
                       method = c("expected", "fixed"), w = NULL) {
@@ -220,6 +252,12 @@ print.dmsa_test <- function(x, ...) {
 #'   the probe models with the SAME estimator, re-run \code{dmsa_test}).
 #' @return two-sided permutation p with the +1 correction (resolution
 #'   floor 1/(B+1)).
+#' @examples
+#' set.seed(1)
+#' null_z <- rnorm(999)          # z from B family-wise permuted datasets
+#' dmsa_perm_pvalue(3.1, null_z)
+#' ## the +1 correction puts a floor of 1/(B+1) on any permutation p
+#' dmsa_perm_pvalue(50, null_z)
 #' @export
 dmsa_perm_pvalue <- function(observed, null_stats) {
   B <- length(null_stats)
@@ -234,6 +272,15 @@ dmsa_perm_pvalue <- function(observed, null_stats) {
 #' this table is how that is caught and reported.
 #' @param alignment result of dmsa_align(level = "system")
 #' @return one-row data.frame per call
+#' @examples
+#' dcall <- data.frame(cpg = paste0("p", 1:4), d = c(1, -1, 1, NA),
+#'                     p_plus = c(0.9, 0.1, 0.8, NA))
+#' genes <- c("CRH", "POMC", "AVPR2", "NR3C1")
+#' pol <- data.frame(gene = genes, w_g = c(1, 1, 0, -1))
+#' al <- dmsa_align(dcall, genes, level = "system", polarity = pol)
+#' # the only brake gene abstained, so this "system" test is really an
+#' # activation-gene test - which is what the balance table makes visible
+#' dmsa_balance(al)
 #' @export
 dmsa_balance <- function(alignment) {
   al <- as.data.frame(alignment)

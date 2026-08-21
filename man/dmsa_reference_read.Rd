@@ -20,3 +20,15 @@ The format written by the bundle builder: \code{systems.csv},
 \code{polarity.csv} and optionally \code{anchors.csv} in one directory,
 plus an optional \code{manifest.dcf} carrying name, version and notes.
 }
+\examples{
+## A bundle on disk is systems.csv, polarity.csv, anchors.csv and an optional
+## manifest.dcf carrying the provenance, all in one directory.
+sys <- data.frame(gene = c("CRH", "POMC", "NR3C1"), system_id = "1",
+                  system = "HPA axis")
+pol <- data.frame(gene = sys$gene, system_id = "1", w_g = c(1, 1, -1))
+d <- file.path(tempdir(), "hpa_bundle")
+dmsa_reference_write(dmsa_reference(sys, pol, anchor_method = "curated",
+                                    name = "hpa-toy", version = "1"), d)
+list.files(d)
+dmsa_reference_read(d)
+}

@@ -69,13 +69,31 @@
 #' per-category log-odds are reported separately. If the categories are in any
 #' sense ordered, \code{family = "ordinal"} keeps the direction and is strictly
 #' preferable.
+#' @examples
+#' set.seed(1)
+#' n <- 120
+#' d <- data.frame(S = rnorm(n), cv = rnorm(n),
+#'                 cid = rep(seq_len(n / 2), each = 2))
+#' d$y <- rbinom(n, 1, plogis(0.9 * d$S))
+#' ## a binary outcome yields ONE coefficient, so the sign of the log-odds
+#' ## is still the expression-aligned direction
+#' dmsa_outcome(d, outcome = "y", score = "S", family = "binomial",
+#'              covariates = "cv", block = "cid", B = 99, seed = 2)
 #' @export
 dmsa_outcome <- function(data, outcome, score, family = c("gaussian", "binomial",
                          "ordinal", "multinomial", "poisson"),
                          moderator = NULL, covariates = character(),
                          block = NULL, center = TRUE, B = 999L, seed = NULL) {
   family <- match.arg(family)
-  if (!is.null(seed)) set.seed(seed)
+  if (!is.null(seed)) {
+    ## restore the caller's RNG state on exit: a permutation seed is for
+    ## reproducing THIS result, not for silently reseeding the user's session.
+    .old_seed <- if (exists(".Random.seed", envir = globalenv()))
+      get(".Random.seed", envir = globalenv()) else NULL
+    on.exit(if (!is.null(.old_seed))
+      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+    set.seed(seed)
+  }
   data <- as.data.frame(data)
   need <- c(outcome, score, moderator, covariates, block)
   miss <- setdiff(need, names(data))

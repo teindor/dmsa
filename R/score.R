@@ -137,10 +137,27 @@ dmsa_scores <- function(M, alignment, method = c("expected", "fixed"),
 #' @param seed Optional integer.
 #' @param nulls Optional list of pre-computed permutation null matrices, as returned by an earlier call on the same frame. Supplying it reuses the shared permutation stream instead of drawing a new one, which is what keeps lens, engine and level results jointly calibrated.
 #' @return An object of class \code{dmsa_model}.
+#' @examples
+#' set.seed(1)
+#' n <- 80
+#' d <- data.frame(S = rnorm(n), ACE = rnorm(n),
+#'                 cID = rep(seq_len(n / 2), each = 2))   # couples
+#' d$y <- 0.5 * d$S * d$ACE + rnorm(n)
+#' ## rows are relabelled only within equal-size families, so the couple
+#' ## dependence is preserved under the null
+#' dmsa_model(y ~ S * ACE, d, term = "S:ACE", block = d$cID, B = 99, seed = 1)
 #' @export
 dmsa_model <- function(formula, data, term, block = NULL, B = 1999,
                        seed = NULL, nulls = FALSE) {
-  if (!is.null(seed)) set.seed(seed)
+  if (!is.null(seed)) {
+    ## restore the caller's RNG state on exit: a permutation seed is for
+    ## reproducing THIS result, not for silently reseeding the user's session.
+    .old_seed <- if (exists(".Random.seed", envir = globalenv()))
+      get(".Random.seed", envir = globalenv()) else NULL
+    on.exit(if (!is.null(.old_seed))
+      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+    set.seed(seed)
+  }
   mf <- stats::model.frame(formula, data, na.action = stats::na.omit)
   keep <- match(rownames(mf), rownames(as.data.frame(data)))
   X <- stats::model.matrix(formula, mf); y <- stats::model.response(mf)
@@ -199,6 +216,20 @@ print.dmsa_model <- function(x, ...) {
 #' @param term Term to test.
 #' @param score_col Column name the formula uses for the score.
 #' @return list: \code{p_by_flavour}, the omnibus \code{p}, and the fits.
+#' @examples
+#' set.seed(1)
+#' n <- 80
+#' M <- matrix(rnorm(n * 6), n, 6)
+#' al <- dmsa_align(data.frame(cpg = paste0("cg", 1:6), d = c(1, 1, -1, 1, -1, 1),
+#'                             p_plus = rep(.9, 6)),
+#'                  genes = rep("OXTR", 6), level = "gene")
+#' sc <- dmsa_scores(M, al)
+#' d <- data.frame(age = rnorm(n), cID = rep(seq_len(n / 2), each = 2))
+#' d$y <- 0.6 * sc$aligned + rnorm(n)
+#' ## one p per projection, combined by ACAT - hedging costs no multiplicity
+#' o <- dmsa_model_omnibus(sc, y ~ S + age, d, term = "S", block = d$cID,
+#'                         B = 99, seed = 1)
+#' round(c(o$p_by_flavour, omnibus = o$p), 3)
 #' @export
 dmsa_model_omnibus <- function(scores, formula, data, term, block = NULL,
                                score_col = "S", B = 1999, seed = NULL) {

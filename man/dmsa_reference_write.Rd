@@ -18,3 +18,13 @@ dmsa_reference_write(reference, dir)
 The inverse of \code{dmsa_reference_read()}: useful for saving a bundle built
 from a one-file csv, or a generated bundle you have edited.
 }
+\examples{
+f <- tempfile(fileext = ".csv")
+dmsa_reference_template(f)
+ref <- dmsa_reference_csv(f, quiet = TRUE)
+
+d <- tempfile()
+dmsa_reference_write(ref, d)
+list.files(d)
+nrow(dmsa_reference_read(d)$systems)
+}
