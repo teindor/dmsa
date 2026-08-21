@@ -28,7 +28,7 @@ dmsa_reference_template(path, with_modules = TRUE)
 ``` r
 f <- tempfile(fileext = ".csv")
 dmsa_reference_template(f)
-#> template written to /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpEgjJxj/file6048511d7127.csv
+#> template written to /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpwVOFZ5/file62091b00dc7c.csv
 #>   system + gene are required; module, w_g, anchor, role, confidence, source are optional.
 #>   w_g: +1 raises system activation, -1 opposes it, 0 off-axis; continuous values in [-1, 1] are allowed.
 #>   anchor: TRUE for the genes that DEFINE activation for that system.
@@ -40,7 +40,7 @@ head(utils::read.csv(f), 3)
 ## the filled-in rows show every accepted column; replace them with your own
 ## panel, then read the result back as a reference bundle
 dmsa_reference_csv(f, quiet = TRUE)
-#> dmsa reference: file6048511d7127.csv
+#> dmsa reference: file62091b00dc7c.csv
 #>   8 genes across 2 systems, 6 modules
 #>   polarity: 8 gene-system pairs, continuous (6 activating, 2 braking, 0 off-axis)
 #>   anchors: user (2 genes)

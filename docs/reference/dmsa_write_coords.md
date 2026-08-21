@@ -32,7 +32,7 @@ co <- data.frame(probe = c("cg00000029", "cg00000108", "cg00000109"),
                  pos = c(53434200, 37417716, 171916037))
 
 f <- dmsa_write_coords(co, tempfile(fileext = ".csv"))
-#> wrote /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpEgjJxj/file6048681e2325.csv - keep it with the project; the lookup is no longer needed
+#> wrote /var/folders/yd/5vhpvlls31x18db51sk7y_zh0000gn/T//RtmpwVOFZ5/file620918930b45.csv - keep it with the project; the lookup is no longer needed
 utils::read.csv(f)
 #>        probe chr       pos
 #> 1 cg00000029  16  53434200
