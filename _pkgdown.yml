@@ -47,6 +47,9 @@ reference:
   - title: The two-call interface
     desc: Declare the design once, run it once.
     contents: [dmsa_frame, dmsa_report, dmsa_report_panels]
+  - title: Bioconductor interoperability
+    desc: Working from a SummarizedExperiment.
+    contents: [dmsa_se]
   - title: Alignment and testing
     desc: The directional chain and the three lenses.
     contents: [dmsa_align, dmsa_triangulate, dmsa_test, dmsa_score, dmsa_scores,

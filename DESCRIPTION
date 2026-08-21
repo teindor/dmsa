@@ -4,7 +4,7 @@ Version: 0.99.0
 Authors@R: c(person("Tsachi", "Ein-Dor", role = c("aut", "cre", "fnd"),
     email = "teindor@runi.ac.il",
     comment = c(ORCID = "0000-0002-3078-7591")))
-URL: https://github.com/teindor/dmsa
+URL: https://github.com/teindor/dmsa, https://teindor.github.io/dmsa
 BugReports: https://github.com/teindor/dmsa/issues
 Description: Aligns probe-level methylation effects to their predicted
     effect on gene expression and, for system-level

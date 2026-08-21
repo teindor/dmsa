@@ -1,0 +1,57 @@
+# Panel 1: dense arm against sparse arm, every system
+
+Distance from the diagonal is how concentrated a system's response is: a
+system null on the pooled arm and strong on the max-gene arm carries its
+signal in one gene.
+
+## Usage
+
+``` r
+dmsa_plot_systems(
+  systems,
+  alpha = 0.05,
+  file = NULL,
+  width = 1500,
+  height = 1400,
+  res = 190
+)
+```
+
+## Arguments
+
+- systems:
+
+  data.frame with columns `system`, `outcome`, `p_dense`, `p_sparse`;
+  optionally `primary` (logical) and `top_gene`.
+
+- alpha:
+
+  Gate level. The gate is `min(1, 2*min(p_dense, p_sparse))`, so the
+  boundary drawn is at `alpha/2` on each arm.
+
+- file:
+
+  Optional png path. If `NULL` draws to the current device.
+
+- width, height, res:
+
+  png dimensions.
+
+## Value
+
+Invisibly, the plotted data frame.
+
+## Examples
+
+``` r
+## Distance from the diagonal says how concentrated a system's response is:
+## strong on the sparse arm only means the signal sits in a single gene.
+sys <- data.frame(
+  system   = c("HPA axis", "Oxytocin", "Serotonin", "Inflammation"),
+  outcome  = "PTSD severity",
+  p_dense  = c(0.0004, 0.08, 0.41, 0.62),
+  p_sparse = c(0.0012, 0.0003, 0.33, 0.55),
+  primary  = c(TRUE, TRUE, FALSE, FALSE),
+  top_gene = c("NR3C1", "OXTR", "TPH2", "IL6"))
+dmsa_plot_systems(sys, file = tempfile(fileext = ".png"))
+```

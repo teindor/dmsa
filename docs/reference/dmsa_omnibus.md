@@ -1,0 +1,66 @@
+# Directionless omnibus test of a categorical focal exposure over a set
+
+Pools the per-probe F statistic for the `k - 1` contrast columns and
+calibrates it by the same block permutation the directional tests use.
+This answers "does this factor move the set at all" and **gives up the
+direction**, which is the property that separates DMSA from the methods
+it is compared against. Use it as a screen, or when the levels have no
+ordering and no reference level is defensible - and report
+[`dmsa_contrasts()`](https://teindor.github.io/dmsa/reference/dmsa_contrasts.md)
+alongside it.
+
+## Usage
+
+``` r
+dmsa_omnibus(data, Y, design, beta_input = TRUE, B = 999, seed = 1L)
+```
+
+## Arguments
+
+- data:
+
+  Analysis data frame.
+
+- Y:
+
+  Probe matrix (subjects x probes), betas or M-values.
+
+- design:
+
+  A `dmsa_design` whose `focal_test` names the factor.
+
+- beta_input:
+
+  Passed through: are the columns of `Y` betas?
+
+- B:
+
+  Permutations.
+
+- seed:
+
+  RNG seed.
+
+## Value
+
+A list with the pooled statistic, the permutation p-value, and an
+explicit `directional = FALSE`.
+
+## Examples
+
+``` r
+set.seed(1)
+n <- 90
+d <- data.frame(style = factor(sample(c("secure", "anxious", "avoidant"),
+                                      n, TRUE)),
+                age = rnorm(n), cID = rep(seq_len(n / 2), each = 2))
+Y <- matrix(plogis(rnorm(n * 8)), n, 8)     # beta values for 8 probes
+des <- dmsa_design(focal = "style", fixed = "age", exchangeable = "cID")
+## three attachment styles with no defensible reference level: the pooled
+## F asks only whether the factor moves the set, and gives up the direction
+o <- dmsa_omnibus(d, Y, des, B = 99, seed = 5)
+round(o$p_perm, 3)
+#> [1] 0.73
+o$directional    # always FALSE: a pooled F on 2 df has no sign
+#> [1] FALSE
+```
