@@ -14,7 +14,8 @@ returns the whole map.}
 gene per entry of \code{probes}, selecting those specific pairs, or a
 shorter vector naming genes to keep.}
 
-\item{tissue}{Which bundled layer. Only \code{"blood"} ships at present.}
+\item{tissue}{Which bundled layer: \code{"blood"} (default) or
+\code{"epithelium"}. See Details for how to choose.}
 }
 \value{
 A \code{data.frame} with \code{probe}, \code{gene}, \code{d}
@@ -23,25 +24,43 @@ A \code{data.frame} with \code{probe}, \code{gene}, \code{d}
   version are attached as the \code{"dmsa_direction_map"} attribute.
 }
 \description{
-Returns per-probe methylation-to-expression direction calls from the map
+Returns per-probe methylation-to-expression direction calls from the maps
 bundled with dmsa, so an alignment can be built without obtaining a
 direction resource separately.
 }
 \details{
-The bundled map is the blood layer of \code{cpgdirection}, restricted to
+Two layers of \code{cpgdirection} are bundled, each restricted to the
 probe-gene pairs that carry an actual call. About seven in ten rows of the
 full table abstain, and an abstention cannot be aligned to, so those rows
-are not shipped. What remains is 488,204 pairs over 237,761 probes and
-5,376 genes. Other tissues, the brain bridge and the full table live in
-\code{cpgdirection} (\doi{10.5281/zenodo.22024185}), which remains the
-complete resource.
+are not shipped - which is why the reduction costs nothing DMSA could have
+used.
+
+\describe{
+  \item{\code{"blood"}}{Whole blood: 488,204 pairs over 237,761 probes and
+    5,376 genes. The externally validated layer, and the right calls for an
+    immune-dominated sample - adult saliva by passive drool runs about 82%
+    immune.}
+  \item{\code{"epithelium"}}{Nasal epithelium: 688,843 pairs over 277,830
+    probes and 4,447 genes. The right calls for an epithelium-dominated
+    sample - neonatal and infant buccal swabs run .89 to 1.00 epithelial,
+    where blood calls would be the wrong tissue.}
+}
+
+Choose the layer by what the sample is made of, not by what it is called.
+The failure mode this guards against is quiet: an epithelial sample scored
+against immune-derived calls reports full coverage while every direction is
+drawn from the wrong tissue.
+
+The brain bridge, the SMR causal layer, the remaining tissues and the full
+3.1M-pair table live in \code{cpgdirection}
+(\doi{10.5281/zenodo.22024185}), which remains the complete resource.
 
 A probe may map to more than one gene - a median of two, up to seven - and
 every mapped pair is returned, because which gene a probe is read against
 is a modelling decision rather than a lookup.
 }
 \examples{
-# What the bundled map knows about one gene's probes.
+# What the bundled blood map knows about one gene's probes.
 avp <- dmsa_directions(genes = "AVP")
 nrow(avp)
 head(avp, 3)
@@ -50,6 +69,10 @@ head(avp, 3)
 probes <- c("cg00000029", "cg00000165", "not_a_real_probe")
 got <- dmsa_directions(probes)
 got
+
+# The layers are not nested: each calls pairs the other declines to call,
+# so coverage of the same probe set differs by tissue.
+dmsa_directions(probes, tissue = "epithelium")
 
 # Provenance travels with the map.
 attr(dmsa_directions(), "dmsa_direction_map")[c("tissue", "version")]

@@ -42,7 +42,8 @@ where the unit's score belongs.}
 \item{roots}{Units at the outermost level that were PRE-REGISTERED. Their
 count is the first family's size; one root means no correction at the top.}
 
-\item{block}{Permutation block labels (family/cluster id), one per row.}
+\item{block}{Permutation blocks: a column name of \code{data} (or several,
+combined by interaction), or per-row labels (family/cluster id).}
 
 \item{alpha}{Level for every family, propagated to children that pass.}
 

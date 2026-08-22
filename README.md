@@ -72,21 +72,34 @@ remotes::install_github("teindor/dmsa")
 To install the exact version used for every number in the manuscript:
 
 ```r
-remotes::install_github("teindor/dmsa@v1.20.2")
+remotes::install_github("teindor/dmsa")
 ```
 
 Or from the archived tarball on Zenodo:
 
 ```r
-install.packages("dmsa_1.20.2.tar.gz", repos = NULL, type = "source")
+install.packages("dmsa_0.99.6.tar.gz", repos = NULL, type = "source")
 ```
 
-Everything DMSA needs is base R plus `stats` and `data.table`. Direction calls
-(`d`, `p_plus`) can come from any table with those columns; the companion
-package [`cpgdirection`](https://github.com/teindor/cpgdirection)
-([10.5281/zenodo.22024185](https://doi.org/10.5281/zenodo.22024185)) supplies
-them for 3.1 million CpG-gene pairs and is optional. `gt`, `lme4`, `lmerTest`,
-`MASS`, `nnet` and the `Gviz` stack are optional and used only where noted.
+Everything DMSA needs is base R plus `stats` and `data.table`. `gt`, `lme4`,
+`lmerTest`, `MASS`, `nnet` and the `Gviz` stack are optional and used only
+where noted.
+
+**Direction calls ship with the package.** Hand `dmsa_align()` a plain vector
+of CpG identifiers and it takes both the direction calls and the probe-to-gene
+mapping from a bundled map, so nothing has to be obtained first. Two layers are
+bundled — `"blood"` and `"epithelium"` — because direction is tissue-specific:
+of the probe-gene pairs both layers call, about a third disagree in sign, and
+each layer calls genes the other declines to call. Choose by what the sample is
+made of (adult saliva is ~82% immune → blood; neonatal buccal is .89–1.00
+epithelial → epithelium). `dmsa_directions()` shows what a layer knows before
+you commit. Every alignment records which map and version produced it.
+
+Supplying your own table still works — any data.frame with `d` and `p_plus`.
+The companion package [`cpgdirection`](https://github.com/teindor/cpgdirection)
+([10.5281/zenodo.22024185](https://doi.org/10.5281/zenodo.22024185)) remains
+the complete resource: 3.1 million CpG-gene pairs, the further tissues, the
+brain bridge and the SMR causal layer.
 
 Start with `vignette("dmsa")` — a complete worked analysis in which a
 direction-blind test reads null and DMSA recovers the signal from the same
@@ -205,10 +218,10 @@ with a smaller sample. If you don't, pay the premium.
 |---|---|
 | `dmsa_change()` | longitudinal two-wave mDMSA: time × S × E ≡ ΔS × E |
 | `dmsa_pdance()` | set-selection sensitivity — engine-agnostic p-dancing diagnostic |
-| `dmsa_pdance()` | set-selection sensitivity — engine-agnostic p-dancing diagnostic |
 | `dmsa_scores()` | aligned unit scores without inference |
 | `dmsa_test()` | a single unit, one call |
 | `dmsa_tree()` | the level-local cascade on its own |
+| `dmsa_directions()` | the bundled direction calls, by tissue layer |
 | `dmsa_reference_csv()` | build or check a direction/polarity reference |
 | `dmsa_sets()` / `dmsa_select()` | the selection cascade and a selection from it |
 | `dmsa_systems()` | the systems available, with their short names |
@@ -247,7 +260,7 @@ See [`CITATION.cff`](CITATION.cff), or:
 > Zenodo. https://doi.org/10.5281/zenodo.22023957
 
 That is the **concept DOI**: it always resolves to the current release, so a
-citation made through it does not go stale. To pin one release, v1.20.2 is
+citation made through it does not go stale. To pin one release, v0.99.6 is
 [10.5281/zenodo.22042907](https://doi.org/10.5281/zenodo.22042907).
 
 ---

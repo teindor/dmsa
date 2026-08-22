@@ -56,7 +56,8 @@
 #'   \code{"S"} or \code{"S:ACE"}.
 #' @param roots Units at the outermost level that were PRE-REGISTERED. Their
 #'   count is the first family's size; one root means no correction at the top.
-#' @param block Permutation block labels (family/cluster id), one per row.
+#' @param block Permutation blocks: a column name of \code{data} (or several,
+#'   combined by interaction), or per-row labels (family/cluster id).
 #' @param alpha Level for every family, propagated to children that pass.
 #' @param B Permutations.
 #' @param winsor Passed to \code{dmsa_scores()}.
@@ -109,6 +110,7 @@ dmsa_gate <- function(data, M, map, alignment, formula, term, roots,
 
   ## ---- one shared permutation matrix ------------------------------------
   n <- nrow(data)
+  block <- .dmsa_rows(block, data, "block"); .dmsa_check_block(block)
   blk <- if (is.null(block)) seq_len(n) else block
   rws <- split(seq_len(n), blk); strata <- split(seq_along(rws), lengths(rws))
   PM <- matrix(0L, B, n)

@@ -70,6 +70,7 @@ dmsa_change <- function(M_before, M_after, data, outcome = NULL, exposure,
             length(units) == ncol(M_before))
   data <- as.data.frame(data)
   stopifnot(nrow(data) == nrow(M_before))
+  block <- .dmsa_rows(block, data, "block"); .dmsa_check_block(block)
   if (!exposure %in% names(data))
     stop("exposure column '", exposure, "' not in data", call. = FALSE)
   if (role == "predictor" && (is.null(outcome) || !outcome %in% names(data)))

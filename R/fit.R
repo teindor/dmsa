@@ -27,6 +27,9 @@ dmsa_mvalues <- function(beta, eps = 1e-4) {
 ## repeated measures it swaps whole families across all their person-time rows.
 dmsa_block_index <- function(block, B) {
   blk <- as.character(block)
+  if (length(unique(blk)) == 1L && length(blk) > 1L)
+    stop("every row falls in ONE permutation block - no permutation is ",
+         "possible and every p-value would be 1.", call. = FALSE)
   rows <- split(seq_along(blk), blk)
   sz <- lengths(rows)
   by_size <- split(names(rows), sz)

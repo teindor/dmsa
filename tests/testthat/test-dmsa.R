@@ -92,3 +92,39 @@ test_that("abstained probe cannot contribute via p_plus leakage (expected mode)"
   tt <- dmsa_test(b = c(.4, .4), se = c(.1, .1), al, method = "expected")
   expect_equal(tt$n_used, 1)
 })
+
+test_that("the bundled Alpha polarity table covers the whole panel", {
+  ## Regression: alpha_polarity() used to read a 115-gene, six-system draft
+  ## while dmsa_polarity() read the audited 1,234-gene 2026c table. Because a
+  ## gene with no w_g stops a system-level alignment by design, that mismatch
+  ## made dmsa_align(level = "system") fail on most of the panel - at exactly
+  ## the level the method is meant to be used.
+  pol <- alpha_polarity()
+  expect_true(nrow(pol) > 1000)
+  expect_identical(attr(pol, "status"), "audited")
+  expect_true(all(c("gene", "w_g", "system_id", "role") %in% names(pol)))
+  expect_gte(length(unique(pol$system_id)), 30)
+  expect_true(all(pol$w_g %in% c(-1, 0, 1)))
+  ## system_id is character, so a numeric system_id must still match
+  expect_type(pol$system_id, "character")
+})
+
+test_that("a system-level alignment works outside the legacy six systems", {
+  pol <- alpha_polarity()
+  ## system 15 (kynurenine) is not in the legacy draft table
+  g <- pol$gene[pol$system_id == "15" & pol$w_g != 0]
+  skip_if(length(g) < 4, "bundled polarity lacks system 15")
+  g <- head(g, 4)
+  dcall <- data.frame(cpg = paste0("cg", seq_along(g)), d = c(1, -1, 1, -1),
+                      p_plus = c(.9, .1, .9, .1))
+  al <- suppressMessages(
+    dmsa_align(dcall, genes = g, level = "system", polarity = "alpha",
+               system_id = 15))
+  expect_true(all(al$usable))
+  expect_false(any(is.na(al$w_g)))
+  ## numeric and character system_id must behave identically
+  al2 <- suppressMessages(
+    dmsa_align(dcall, genes = g, level = "system", polarity = "alpha",
+               system_id = "15"))
+  expect_equal(al$s, al2$s)
+})

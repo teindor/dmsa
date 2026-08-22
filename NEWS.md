@@ -1,3 +1,129 @@
+# dmsa 0.99.6
+
+* **Permutation groupings now accept a column name - and the old failure mode
+  is refused, not silently endured.** `block`, `ri_group` (and the new `id`)
+  in `dmsa_triangulate()`, and `block` in `dmsa_model()`, `dmsa_gate()`,
+  `dmsa_gate2()`, `dmsa_change()` and `dmsa_block_index()`, were documented as
+  per-row label vectors. Passing a column NAME - the natural thing to do - did
+  not error: a length-1 string recycled into ONE block holding every row, the
+  only within-block permutation was the identity, every permuted statistic
+  equalled the observed one, and **p = 1, always, silently**. Total power
+  loss. (`dmsa_frame()` was unaffected - it resolves its block columns
+  internally, which is why published frame-based results are sound.)
+
+  A column name (or several, combined by interaction, matching
+  `dmsa_frame()`'s semantics) now resolves against `data`; a vector is
+  validated against `nrow(data)`; and the degenerate all-rows-in-one-block
+  case errors with the reason instead of returning p = 1.
+
+* **The design now declares the data shape, and the declaration is
+  verified.** The engines cannot tell wide from long by looking - two rows
+  per person and two people look identical without an identifier - and the
+  cost of guessing wrong is not cosmetic: with two-wave data (ICC ~ .6)
+  treated as independent rows, the measured true-null rejection rate is
+  **.175 at nominal .05**, roughly 3.5x.
+
+  `dmsa_design()` gains `id` (participant column) and `format`
+  (`"wide"`/`"long"`). Long requires an id - rows cannot be kept together
+  without knowing whose they are; wide does not, and is verified when an id
+  exists, taken on trust (with a note) when not. `dmsa_check_design()`
+  verifies the declaration against the rows: declared wide with repeating
+  ids, declared long with none, and a repeating id that sits in neither
+  `random` nor `exchangeable` are all named problems.
+
+  `dmsa_triangulate()` gains `id =`: when any participant contributes more
+  than one row, a missing `block` - or a block that lets an id span two
+  blocks - is an immediate error instead of a silent 3.5x inflation.
+
+  `alpha_design()` declares the shape for all four Alpha builds (1: wide,
+  id = "ID"; 2 and 3: long, id = "ID"; 4: wide - the child build has no
+  per-person column, so its wide declaration is taken on trust).
+
+* Regression tests: name-vs-vector equivalence, the degenerate-block error,
+  the id guards, and the full shape-declaration matrix.
+
+# dmsa 0.99.5
+
+* **`dmsa_align()` now refuses a probe whose confidence is missing, instead of
+  losing it silently or assuming it certain.** A
+  `cpgdirection::cpg_expression_direction(tissue = "all")` result fills
+  `best_confidence` only for its catalogue layers. SMR rows arrived without
+  one, were given an `NA` weight, passed the usability check, and then
+  disappeared inside `dmsa_triangulate()` - no error, no warning, nothing in
+  the output. On one Alpha system that was 940 of 1,548 probes.
+
+  P(d = +1) is now recovered in order from `p_plus`, `probability_plus1`,
+  `best_confidence` / `confidence`, and then - for SMR rows - **the published
+  accuracy of the row's own SMR tier** (S1 0.96, S2 0.85, S3 0.705), never the
+  universal/distance probability, which would substitute a 0.60-0.65 prior for
+  a 0.95-0.97 validated causal call.
+
+  A table with no confidence *column* at all is still treated as certain, which
+  is the documented behaviour for a plain `d`-only table. A table that has
+  confidence columns but leaves a row empty now marks that row **unusable**
+  with reason `no_confidence` and warns - filling it with certainty would give
+  the least-supported rows the most weight.
+
+* **`dmsa_align()` warns when a direction layer is one-way by construction.**
+  cpgdirection's distance curves require unanimity across three tissues and the
+  blood curve never exceeds 0.449, so `distance_only` cannot return `+1` for
+  any CpG at any distance: every direction it contributes is `-1`. On the Alpha
+  panel that is 6,297 calls, 0 of them positive. Aligning a set on a block of
+  probes that all point one way by construction manufactures coherence that is
+  not in the data, so `distance_only` and `targeted_last_resort` are now named
+  in a warning. A generic backstop also fires when every call in a set of 50 or
+  more shares one sign, whatever the source.
+
+* Four regression tests: the recovery order including SMR tiers, the
+  column-versus-value distinction, the one-way guard, and the invariant that
+  "usable" and "reaches the test" are the same set of probes.
+
+# dmsa 0.99.4
+
+* **Critical fix: `alpha_polarity()` read the wrong table.** It returned a
+  115-gene, six-system draft while `dmsa_polarity()` returned the audited
+  1,234-gene 2026c table covering all 30 systems. Because a gene with no
+  `w_g` entry stops an alignment by design, `dmsa_align(level = "system",
+  polarity = "alpha")` **failed on most of the panel** - including the
+  oxytocin/vasopressin system, where 34 calcium-handling genes had no entry.
+  System level is the level this method is meant to be used at, so this
+  disabled the primary use case rather than degrading it.
+
+  `alpha_polarity()` now reads `alpha_polarity_2026c.csv`, falling back to the
+  legacy draft only if the audited file is absent. Its `"status"` attribute is
+  `"audited"` accordingly, `system_id` is coerced to character so a numeric
+  `system_id =` matches, and an empty polarity subset now errors with the id
+  rather than proceeding. With the fix, all 30 systems align: a median of 57
+  usable probes each, 23 systems with 30 or more.
+
+* `alpha_polarity()` gained documentation of what the two bundled tables are
+  and why the audited one matters, plus regression tests covering panel-wide
+  coverage and a system outside the legacy six.
+
+# dmsa 0.99.3
+
+* **A second direction layer ships: nasal epithelium.** `dmsa_align()` and
+  `dmsa_directions()` gain `tissue = c("blood", "epithelium")`. Direction is
+  tissue-specific, and the studies that will use this package are not one
+  tissue: adult saliva by passive drool runs about 82% immune and takes blood
+  calls, while neonatal and infant buccal swabs are .89 to 1.00 epithelial and
+  take epithelial ones.
+
+  Shipping blood alone would have made the wrong choice silent. Of the 126,112
+  probe-gene pairs both layers call, 31% disagree in sign - and the
+  disagreement is not a confidence artefact: among pairs both layers call at
+  tier A it is 32%. The layers are also complementary rather than nested, each
+  calling tens of thousands of probes the other declines to call, so the wrong
+  layer does not merely mis-sign a sample - it can have nothing at all to say
+  about the genes in the set. A buccal sample scored against blood calls would
+  have reported full coverage while drawing every direction from the wrong
+  tissue.
+
+  The epithelial layer is 688,843 pairs over 277,830 probes and 4,447 genes,
+  in 1.6 MB, on the same schema and versioning as blood. Which layer produced
+  an alignment continues to travel with the result in the `"direction_map"`
+  attribute.
+
 # dmsa 0.99.2
 
 * **Direction calls now ship with the package.** `dmsa_align()` accepts a plain

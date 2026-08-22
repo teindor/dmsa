@@ -56,7 +56,13 @@
 #' @param units Character vector, one entry per column of \code{M}, naming the
 #'   unit that column belongs to (typically the gene).
 #' @param alignment \code{dmsa_align()} result covering \code{M}'s columns.
-#' @param block Permutation block labels, one per row.
+#' @param block Permutation blocks: a column name of \code{data} (or several,
+#'   combined by interaction), or a vector of labels, one per row. Rows in the
+#'   same block travel together under permutation.
+#' @param id Optional participant identifier - a column name or per-row
+#'   vector. Purely a safety declaration: if any participant contributes more
+#'   than one row, \code{block} must keep those rows together, and this stops
+#'   the analysis when it would not.
 #' @param B Permutations.
 #' @param winsor MADs for winsorisation; \code{NULL} to disable.
 #' @param method Pooling method for \code{dmsa_test()}.
@@ -94,7 +100,7 @@
 #' res[, c("unit", "n_probes", "concordance", "direction", "p_omnibus")]
 #' @export
 dmsa_triangulate <- function(M, data, rhs, term, units, alignment, block = NULL,
-                             B = 1999, winsor = 3,
+                             id = NULL, B = 1999, winsor = 3,
                              method = c("expected", "fixed"),
                              correction = c("maxT", "minP"),
                              weighting = c("combined", "reliability", "flat"),
@@ -111,6 +117,32 @@ dmsa_triangulate <- function(M, data, rhs, term, units, alignment, block = NULL,
     set.seed(seed)
   }
   M <- as.matrix(M); data <- as.data.frame(data)
+  block    <- .dmsa_rows(block,    data, "block")
+  ri_group <- .dmsa_rows(ri_group, data, "ri_group")
+  id       <- .dmsa_rows(id,       data, "id")
+  .dmsa_check_block(block)
+  ## the participant declaration: if anyone contributes more than one row,
+  ## those rows are correlated, and a permutation that separates them is
+  ## anticonservative. Measured on two-wave data with ICC ~ .6 the true-null
+  ## rejection rate roughly triples. So repeats REQUIRE a block that keeps
+  ## each participant's rows together.
+  if (!is.null(id)) {
+    per <- table(id)
+    if (max(per) > 1L) {
+      if (is.null(block))
+        stop(sum(per > 1L), " participant(s) contribute more than one row ",
+             "(max ", max(per), "), but block = NULL would permute their ",
+             "correlated rows independently. Set block to the participant ",
+             "id (block = id), or to a grouping at least as coarse.",
+             call. = FALSE)
+      spans <- tapply(as.character(block), id, function(z) length(unique(z)))
+      if (any(spans > 1L))
+        stop(sum(spans > 1L), " participant id(s) span more than one ",
+             "permutation block, so a permutation can still separate a ",
+             "participant's rows. Each id must sit inside one block.",
+             call. = FALSE)
+    }
+  }
   al <- as.data.frame(alignment)
   if (length(units) != ncol(M) || nrow(al) != ncol(M))
     stop("units, alignment and M must describe the same probes in order",

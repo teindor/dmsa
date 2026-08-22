@@ -158,6 +158,8 @@ dmsa_model <- function(formula, data, term, block = NULL, B = 1999,
       assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
     set.seed(seed)
   }
+  block <- .dmsa_rows(block, as.data.frame(data), "block")
+  .dmsa_check_block(block)
   mf <- stats::model.frame(formula, data, na.action = stats::na.omit)
   keep <- match(rownames(mf), rownames(as.data.frame(data)))
   X <- stats::model.matrix(formula, mf); y <- stats::model.response(mf)

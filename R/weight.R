@@ -92,3 +92,36 @@ dmsa_relweights <- function(Z, units, mlt, w_floor = 1.5,
   }
   relw
 }
+## Shared resolution of row-grouping arguments (block, ri_group, id).
+##
+## Every permutation engine here takes "labels, one per row". Passing a COLUMN
+## NAME instead is the natural mistake - and it did not error: a length-1
+## string recycles into one block holding every row, the only within-block
+## permutation is the identity, every permuted statistic equals the observed
+## one, and p = 1 for eternity. Silent total power loss. So names are now
+## resolved, vectors validated, and the degenerate one-block case refused.
+.dmsa_rows <- function(x, data, what) {
+  if (is.null(x)) return(NULL)
+  n <- nrow(data)
+  if (is.character(x) && length(x) != n && all(x %in% names(data))) {
+    x <- if (length(x) == 1L) data[[x]]
+         else interaction(data[, x, drop = FALSE], drop = TRUE)
+  } else if (length(x) != n) {
+    stop(what, " must be a column name of `data` or one label per row ",
+         "(got length ", length(x), " for ", n, " rows",
+         if (is.character(x) && length(x) <= 3L)
+           paste0("; \"", paste(x, collapse = "\", \""),
+                  "\" is not a column of data") else "", ")", call. = FALSE)
+  }
+  x
+}
+
+.dmsa_check_block <- function(blk, what = "block") {
+  if (is.null(blk)) return(invisible(NULL))
+  u <- unique(blk)
+  if (length(u) == 1L && length(blk) > 1L)
+    stop("every row falls in ONE ", what, " - no permutation is possible ",
+         "and every p-value would be 1. This usually means a column name ",
+         "was recycled or the wrong column was chosen.", call. = FALSE)
+  invisible(NULL)
+}

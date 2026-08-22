@@ -122,3 +122,95 @@ test_that("block permutation moves all rows of a longitudinal block together", {
   idx <- dmsa:::dmsa_block_index(blk, 3)
   for (i in idx) expect_true(all(tapply(blk[i], blk, function(z) length(unique(z))) == 1))
 })
+
+test_that("permutation groupings accept a column name or a vector, never a recycled string", {
+  ## Regression: block was documented as per-row labels. A column NAME - the
+  ## natural thing to pass - recycled into ONE block holding every row, the
+  ## only within-block permutation was the identity, and p = 1 forever.
+  ## Silent, total power loss.
+  set.seed(1); n <- 100
+  d <- rep(c(1, -1), each = 3); f <- rnorm(n)
+  M <- sapply(d, function(dj) dj * .6 * f + sqrt(1 - .6^2) * rnorm(n))
+  colnames(M) <- paste0("cg", 1:6)
+  dat <- data.frame(y = .5 * f + rnorm(n), cID = factor(rep(1:50, each = 2)))
+  al <- dmsa_align(data.frame(cpg = colnames(M), d = d,
+                              p_plus = ifelse(d > 0, .9, .1)),
+                   genes = rep("OXTR", 6), level = "gene")
+  t_name <- dmsa_triangulate(M, dat, rhs = "y", term = "y",
+                             units = rep("OXTR", 6), alignment = al,
+                             block = "cID", B = 99, seed = 1)
+  t_vec  <- dmsa_triangulate(M, dat, rhs = "y", term = "y",
+                             units = rep("OXTR", 6), alignment = al,
+                             block = dat$cID, B = 99, seed = 1)
+  expect_identical(t_name$p_omnibus, t_vec$p_omnibus)
+  expect_lt(t_name$p_omnibus[1], 0.5)   # a real p, not the degenerate 1
+
+  ## the degenerate one-block case is refused, not silently p = 1
+  expect_error(dmsa_triangulate(M, dat, rhs = "y", term = "y",
+                 units = rep("OXTR", 6), alignment = al,
+                 block = rep("all", n), B = 99),
+               "no permutation is possible")
+  ## a name that is not a column is refused, not recycled
+  expect_error(dmsa_triangulate(M, dat, rhs = "y", term = "y",
+                 units = rep("OXTR", 6), alignment = al,
+                 block = "not_a_column", B = 99),
+               "column name|not a column")
+})
+
+test_that("declared participants cannot be permuted apart", {
+  ## Long data with the block forgotten inflates the true-null rejection
+  ## rate ~3.5x (measured: .175 at nominal .05, two waves, ICC ~ .6). The id
+  ## declaration turns that silent inflation into an immediate error.
+  set.seed(2); n <- 100
+  d <- rep(c(1, -1), each = 3)
+  M <- matrix(rnorm(n * 6), n, 6, dimnames = list(NULL, paste0("cg", 1:6)))
+  al <- dmsa_align(data.frame(cpg = colnames(M), d = d,
+                              p_plus = ifelse(d > 0, .9, .1)),
+                   genes = rep("OXTR", 6), level = "gene")
+  dl <- data.frame(y = rnorm(n), ID = factor(rep(1:50, each = 2)),
+                   badblk = factor(rep(1:2, 50)))
+  expect_error(dmsa_triangulate(M, dl, rhs = "y", term = "y",
+                 units = rep("OXTR", 6), alignment = al, id = "ID", B = 99),
+               "contribute more than one row")
+  expect_error(dmsa_triangulate(M, dl, rhs = "y", term = "y",
+                 units = rep("OXTR", 6), alignment = al, id = "ID",
+                 block = "badblk", B = 99),
+               "span more than one")
+  ok <- dmsa_triangulate(M, dl, rhs = "y", term = "y",
+          units = rep("OXTR", 6), alignment = al, id = "ID",
+          block = "ID", B = 99, seed = 1)
+  expect_true(is.finite(ok$p_omnibus[1]))
+})
+
+test_that("the design declares the data shape and the check verifies it", {
+  dl <- data.frame(y = rnorm(40), ID = factor(rep(1:20, each = 2)))
+  dw <- data.frame(y = rnorm(20), ID = factor(1:20))
+
+  ## long requires an id; wide does not
+  expect_error(dmsa_design("y", fixed = character(), format = "long"),
+               "id =")
+  expect_silent(dmsa_design("y", fixed = character(), format = "wide"))
+
+  ## declared long, verified long
+  des <- dmsa_design("y", fixed = character(), exchangeable = "ID",
+                     id = "ID", format = "long")
+  chk <- suppressMessages(suppressWarnings(dmsa_check_design(des, dl, strict = FALSE)))
+  expect_false(any(grepl("declared wide but|declared long but", chk$problems)))
+
+  ## declared wide on long data - and the id outside random/exchangeable
+  desw <- dmsa_design("y", fixed = character(), id = "ID", format = "wide")
+  chkw <- suppressMessages(suppressWarnings(dmsa_check_design(desw, dl, strict = FALSE)))
+  expect_true(any(grepl("declared wide but the data are long", chkw$problems)))
+  expect_true(any(grepl("neither `random` nor `exchangeable`", chkw$problems)))
+
+  ## declared long on wide data
+  desl <- dmsa_design("y", fixed = character(), exchangeable = "ID",
+                      id = "ID", format = "long")
+  chkl <- suppressMessages(suppressWarnings(dmsa_check_design(desl, dw, strict = FALSE)))
+  expect_true(any(grepl("declared long but the data are wide", chkl$problems)))
+
+  ## the Alpha contracts carry their shapes
+  expect_identical(alpha_design(2, focal = "time:x_c")$format, "long")
+  expect_identical(alpha_design(2, focal = "time:x_c")$id, "ID")
+  expect_identical(alpha_design(4, focal = "x_c")$format, "wide")
+})

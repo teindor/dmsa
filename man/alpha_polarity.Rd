@@ -2,12 +2,14 @@
 % Please edit documentation in R/dmsa.R
 \name{alpha_polarity}
 \alias{alpha_polarity}
-\title{Alpha panel gene -> system-activation polarity (bundled, DRAFT)}
+\title{Alpha panel gene -> system-activation polarity (bundled)}
 \usage{
 alpha_polarity()
 }
 \value{
-data.frame with system_id, system, gene, w_g_draft, role, confidence
+data.frame with system_id, system, gene, w_g, role, confidence and,
+  for the 2026c table, module, w_g_source, anchor, evidence and citation.
+  The \code{"status"} attribute is \code{"audited"} or \code{"draft"}.
 }
 \description{
 Curated w_g per gene: +1 gene product increases the system's activation
@@ -16,11 +18,18 @@ negative feedback = LOWER axis tone), 0 = not on the activation axis
 (readouts, specificity controls, ambiguous).
 }
 \details{
-STATUS: draft pending PI approval and per-gene citations. Every use
-prints a reminder until the table is finalised.
+Returns the audited 2026c table: 1,234 genes across all 30 systems. A
+legacy 115-gene draft covering six systems also ships, and is used only as
+a fallback if the 2026c file is missing from the installation.
+
+The 2026c table is why a system-level alignment works at all: an
+\code{alpha_polarity()} that covered only six systems made
+\code{dmsa_align(level = "system")} fail on most of the panel, since a
+gene with no w_g entry stops the alignment by design.
 }
 \examples{
 pol <- alpha_polarity()
+nrow(pol)
 head(pol[, c("system", "gene", "w_g", "role")], 4)
 # CRH drives the HPA axis (w_g = +1); NR3C1 is its brake, so more GR means
 # stronger negative feedback and LOWER axis tone (w_g = -1)

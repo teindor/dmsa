@@ -114,6 +114,7 @@ dmsa_levels <- function(M, data, rhs, term, map, alignment, roots, block = NULL,
     list(b = bh[fi, ], se = sqrt(colSums(r^2) / dfr * vff)) }
   Zo <- X[, -fi, drop = FALSE]; PZ <- Zo %*% solve(crossprod(Zo), t(Zo))
   Fit <- PZ %*% Y; Res <- Y - Fit
+  block <- .dmsa_rows(block, data, "block"); .dmsa_check_block(block)
   blk <- if (is.null(block)) seq_len(n) else block
   rws <- split(seq_len(n), blk); strata <- split(seq_along(rws), lengths(rws))
   PM <- matrix(0L, B, n)

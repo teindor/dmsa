@@ -10,7 +10,9 @@ dmsa_design(
   random = NULL,
   exchangeable = NULL,
   forbid = character(),
-  label = NULL
+  label = NULL,
+  id = NULL,
+  format = c(NA, "wide", "long")
 )
 }
 \arguments{
@@ -41,6 +43,18 @@ mechanism valid cross-sectionally and longitudinally.}
 into an error.}
 
 \item{label}{Optional name for printing.}
+
+\item{id}{Optional participant identifier column. Declaring it lets
+\code{dmsa_check_design()} verify the data shape against the rows -
+whether any participant contributes more than one row, and whether a
+repeating id is grouped by \code{random} or \code{exchangeable} so a
+permutation cannot separate a participant's correlated rows.}
+
+\item{format}{Declared data shape: \code{"wide"} (one row per
+participant) or \code{"long"} (repeated rows). \code{"long"} requires
+\code{id}, since rows cannot be grouped without knowing whose they
+are; \code{"wide"} does not, and is verified when an id is present.
+\code{NA} (default) leaves the shape undeclared.}
 }
 \value{
 An object of class \code{dmsa_design}.

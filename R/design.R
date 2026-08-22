@@ -30,6 +30,16 @@
 #'   (the build's never-list). Supplying these turns a documentation rule
 #'   into an error.
 #' @param label Optional name for printing.
+#' @param id Optional participant identifier column. Declaring it lets
+#'   \code{dmsa_check_design()} verify the data shape against the rows -
+#'   whether any participant contributes more than one row, and whether a
+#'   repeating id is grouped by \code{random} or \code{exchangeable} so a
+#'   permutation cannot separate a participant's correlated rows.
+#' @param format Declared data shape: \code{"wide"} (one row per
+#'   participant) or \code{"long"} (repeated rows). \code{"long"} requires
+#'   \code{id}, since rows cannot be grouped without knowing whose they
+#'   are; \code{"wide"} does not, and is verified when an id is present.
+#'   \code{NA} (default) leaves the shape undeclared.
 #' @return An object of class \code{dmsa_design}.
 #' @examples
 #' dmsa_design(focal = "IC_c",
@@ -38,7 +48,17 @@
 #'             forbid = c("ctrlSV4", "plate"))
 #' @export
 dmsa_design <- function(focal, fixed, random = NULL, exchangeable = NULL,
-                        forbid = character(), label = NULL) {
+                        forbid = character(), label = NULL,
+                        id = NULL, format = c(NA, "wide", "long")) {
+  format <- if (length(format) != 1L || is.na(format)) NA_character_ else
+    match.arg(format, c("wide", "long"))
+  ## long REQUIRES an id: rows cannot be kept together without knowing whose
+  ## they are. Wide does not - it asserts independence, and is verified when
+  ## an id happens to exist, taken on trust when it does not.
+  if (identical(format, "long") && is.null(id))
+    stop("format = \"long\" declares repeated rows per participant; name ",
+         "the participant column via id = so the rows can be grouped and ",
+         "the declaration verified", call. = FALSE)
   if (!length(focal)) stop("focal must name at least one term", call. = FALSE)
   focal <- as.character(focal)
   fixed <- if (is.null(fixed)) character() else as.character(fixed)
@@ -59,7 +79,7 @@ dmsa_design <- function(focal, fixed, random = NULL, exchangeable = NULL,
 
   ## every variable the design touches, with interaction terms split out
   focal_vars <- unique(unlist(strsplit(focal, ":", fixed = TRUE)))
-  vars <- unique(c(focal_vars, fixed, rg, exchangeable))
+  vars <- unique(c(focal_vars, fixed, rg, exchangeable, id))
 
   bad <- intersect(forbid, c(focal_vars, fixed))
   if (length(bad))
@@ -70,6 +90,7 @@ dmsa_design <- function(focal, fixed, random = NULL, exchangeable = NULL,
     focal = focal, focal_test = focal[1], focal_vars = focal_vars,
     fixed = fixed, random_groups = rg, exchangeable = exchangeable,
     forbid = as.character(forbid), label = label,
+    id = id, format = format,
     vars = vars
   ), class = "dmsa_design")
 }
@@ -84,6 +105,13 @@ print.dmsa_design <- function(x, ...) {
         paste0("(1|", x$random_groups, ")", collapse = " + ") else "(none declared)", "\n")
   cat("  exchange   ", if (is.null(x$exchangeable)) "(none - permutation will assume independence)"
                        else x$exchangeable, "\n")
+  if (!is.null(x$id) || (!is.null(x$format) && !is.na(x$format)))
+    cat("  shape      ", if (is.null(x$id)) "(no id)" else paste0("id = ", x$id),
+        if (!is.null(x$format) && !is.na(x$format))
+          paste0(", declared ", x$format,
+                 if (x$format == "long") " (repeated rows per participant)"
+                 else " (one row per participant)") else ", format undeclared",
+        "\n", sep = "")
   if (length(x$forbid))
     cat("  never      ", paste(x$forbid, collapse = ", "), "\n")
   invisible(x)
@@ -119,27 +147,27 @@ alpha_design <- function(build, focal, drop = character()) {
   spec <- switch(as.character(build),
     "1" = list(
       fixed  = c("sex_c", "age_at_array_T1", "Epi_T1", "Fib_T1", "ctrlSV3_T1", "ctrlSV5_T1"),
-      random = c("chip_T1", "cID"), exch = "cID",
+      random = c("chip_T1", "cID"), exch = "cID", id = "ID", format = "wide",
       forbid = c("ctrlSV1_T1", "ctrlSV2_T1", "ctrlSV4_T1", "plate_T1",
                  "submission_T1", "submission_kit_T1", "chip_row_T1"),
       label  = "Alpha build 1 (parents T1)"),
     "2" = list(
       fixed  = c("sex_c", "Epi_array", "Fib_array", "ctrlSV5_array"),
-      random = c("ID", "cID"), exch = "cID",
+      random = c("ID", "cID"), exch = "cID", id = "ID", format = "long",
       forbid = c("submission_array", "plate_array", "chip_array", "ctrlSV1_array",
                  "ctrlSV2_array", "ctrlSV3_array", "ctrlSV4_array",
                  "age_at_array_array", "chip_row_array"),
       label  = "Alpha build 2 (T1 to T4)"),
     "3" = list(
       fixed  = c("sex_c", "Epi_array", "Fib_array", "ctrlSV5_array"),
-      random = c("ID", "cID"), exch = "cID",
+      random = c("ID", "cID"), exch = "cID", id = "ID", format = "long",
       forbid = c("submission_array", "plate_array", "chip_array", "ctrlSV1_array",
                  "ctrlSV2_array", "ctrlSV3_array", "ctrlSV4_array",
                  "age_at_array_array", "chip_row_array", "wave"),
       label  = "Alpha build 3 (October 7)"),
     "4" = list(
       fixed  = c("sex_c", "birth_week", "birth_weight", "Epi_T4"),
-      random = "chip_T4", exch = "cID",
+      random = "chip_T4", exch = "cID", id = NULL, format = "wide",
       forbid = c("Fib_T4", "age_at_array_T4", "ctrlSV1_T4", "ctrlSV2_T4",
                  "ctrlSV3_T4", "ctrlSV4_T4", "ctrlSV5_T4", "plate_T4",
                  "submission_T4", "submission_kit_T4", "chip_row_T4", "preterm"),
@@ -150,6 +178,7 @@ alpha_design <- function(build, focal, drop = character()) {
   dropped <- intersect(spec$fixed, drop)
   out <- dmsa_design(focal = focal, fixed = keep, random = spec$random,
                      exchangeable = spec$exch, forbid = spec$forbid,
+                     id = spec$id, format = spec$format,
                      label = paste0(spec$label,
                        if (length(dropped)) paste0(" [declared deviation: -",
                          paste(dropped, collapse = ", "), "]") else ""))
@@ -204,6 +233,50 @@ dmsa_check_design <- function(design, data, strict = TRUE) {
   dat <- data[cc, , drop = FALSE]
   n <- nrow(dat)
   if (n < 10) problems <- c(problems, sprintf("only %d complete cases", n))
+
+  ## ---- data shape: verify the declaration against the rows ----------------
+  ## The engines cannot tell wide from long by looking - two rows per person
+  ## and two people look identical without an id. So the design DECLARES the
+  ## shape and this check verifies it. Getting it wrong is not cosmetic: with
+  ## repeated rows treated as independent, the measured true-null rejection
+  ## rate on two-wave data (ICC ~ .6) is ~3x nominal.
+  fmt <- design$format
+  if (!is.null(design$id)) {
+    per <- table(as.character(dat[[design$id]]))
+    mx  <- max(per); n_id <- length(per)
+    actual <- if (mx > 1L) "long" else "wide"
+    if (!is.null(fmt) && !is.na(fmt) && !identical(fmt, actual))
+      problems <- c(problems, sprintf(
+        "declared %s but the data are %s: %d participants, max %d row(s) each%s",
+        fmt, actual, n_id, mx,
+        if (identical(fmt, "long")) " - every participant has one row" else ""))
+    if (identical(actual, "long")) {
+      covered <- design$id %in% c(design$random_groups, design$exchangeable)
+      if (!covered)
+        problems <- c(problems, sprintf(
+          paste0("%d participant(s) contribute up to %d rows, but id \"%s\" ",
+                 "is in neither `random` nor `exchangeable` - the permutation ",
+                 "would treat correlated rows as independent"),
+          sum(per > 1L), mx, design$id))
+      else
+        notes <- c(notes, sprintf(
+          "long format verified: %d participants, %d rows, id \"%s\" grouped",
+          n_id, n, design$id))
+      if ((is.null(fmt) || is.na(fmt)))
+        notes <- c(notes, "format was not declared; inferred long from the id")
+    } else if (identical(actual, "wide") && (is.null(fmt) || is.na(fmt))) {
+      notes <- c(notes, "format was not declared; inferred wide from the id")
+    }
+  } else if (identical(fmt, "wide")) {
+    notes <- c(notes, paste0(
+      "declared wide with no id - one row per participant is taken on ",
+      "trust, not verified"))
+  } else {
+    notes <- c(notes, paste0(
+      "no participant id declared - cannot verify that rows are independent. ",
+      "If any participant contributes more than one row, declare id= in ",
+      "dmsa_design()"))
+  }
 
   ## constant covariates -- a constant cannot be a covariate
   const <- character()

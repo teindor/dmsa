@@ -12,6 +12,7 @@ dmsa_triangulate(
   units,
   alignment,
   block = NULL,
+  id = NULL,
   B = 1999,
   winsor = 3,
   method = c("expected", "fixed"),
@@ -38,7 +39,14 @@ unit that column belongs to (typically the gene).}
 
 \item{alignment}{\code{dmsa_align()} result covering \code{M}'s columns.}
 
-\item{block}{Permutation block labels, one per row.}
+\item{block}{Permutation blocks: a column name of \code{data} (or several,
+combined by interaction), or a vector of labels, one per row. Rows in the
+same block travel together under permutation.}
+
+\item{id}{Optional participant identifier - a column name or per-row
+vector. Purely a safety declaration: if any participant contributes more
+than one row, \code{block} must keep those rows together, and this stops
+the analysis when it would not.}
 
 \item{B}{Permutations.}
 

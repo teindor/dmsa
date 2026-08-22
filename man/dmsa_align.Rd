@@ -51,8 +51,13 @@ off-axis, probe drops from the system pool but is reported), or
 \code{"drop"} (silently exclude).}
 
 \item{tissue}{Which bundled direction layer to read when \code{direction}
-is a character vector of probe IDs. Only \code{"blood"} ships at
-present; other tissues live in \code{cpgdirection}.}
+is a character vector of probe IDs: \code{"blood"} (default) or
+\code{"epithelium"}. Choose by what the sample is made of - adult saliva
+is about 82% immune and takes blood calls; neonatal and infant buccal
+swabs are .89 to 1.00 epithelial and take epithelial calls. Getting this
+wrong fails quietly: coverage looks full while every direction comes from
+the wrong tissue. Ignored when \code{direction} is a table you supply.
+Further tissues live in \code{cpgdirection}.}
 }
 \value{
 data.frame: probe, gene, d, p_plus, w_g, s (= d * w_g at system
@@ -73,6 +78,13 @@ attr(al, "direction_map")
 
 # Pin each probe to one gene when the panel says which gene it belongs to.
 dmsa_align(c("cg00052046", "cg00176879"), genes = c("AVP", "AVP"))$s
+
+# Direction is tissue-specific, so which layer to read is part of the
+# analysis, not a default to leave alone. An adult saliva sample is about
+# 82\% immune and takes blood calls; a neonatal buccal swab is near-pure
+# epithelium and takes epithelial ones.
+bu <- dmsa_align("cg00176879", tissue = "epithelium")
+attr(bu, "direction_map")
 
 # d is the CpG -> expression sign, w_g the gene -> system-tone sign.
 # A promoter CpG silences NR3C1 (d = -1) and GR is the HPA brake (w_g = -1),
