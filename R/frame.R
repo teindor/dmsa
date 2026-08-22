@@ -999,11 +999,12 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
       cor <- .frame_note(cor, v, "constant within every block",
                          "block and covariate are confounded; permutation respects both")
   }
-  if (logperm < 10)
-    stop(sprintf(paste0("only ~2^%.1f distinct block permutations are ",
-                        "available - too few for stable p-values. Merge ",
-                        "blocks or drop the random term."), logperm),
-         call. = FALSE)
+  if (logperm < 10) {
+    fmt <- paste0("only ~2^%.1f distinct block permutations are ",
+                  "available - too few for stable p-values. Merge ",
+                  "blocks or drop the random term.")
+    stop(sprintf(fmt, logperm), call. = FALSE)
+  }
 
   ## ---- TEST DRIVE 4: outcome audit ----------------------------------------
   for (oc in outcome) {

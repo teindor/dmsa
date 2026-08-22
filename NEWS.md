@@ -1,3 +1,10 @@
+# dmsa 0.99.8
+
+* Bioconductor pre-submission polish; no behaviour changes. The R dependency
+  rises to 4.6.0 (per BiocCheck), `seq_len()` replaces literal `1:n` in four
+  spots, conditional message fragments move out of the signal calls, and the
+  pipelines vignette gains chunk labels and a session-info section.
+
 # dmsa 0.99.7
 
 * **New: `dmsa_import()` - one door in from every preprocessing pipeline.**

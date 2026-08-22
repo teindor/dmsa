@@ -280,10 +280,11 @@ dmsa_align <- function(direction, genes = NULL,
       pol_status <- attr(pol, "status")     # subsetting drops attributes
       if (!is.null(system_id))
         pol <- pol[pol$system_id == as.character(system_id), , drop = FALSE]
+      in_sys <- if (is.null(system_id)) "" else
+        paste0(" in system ", system_id)
       message(sprintf(
         "dmsa: using bundled Alpha polarity table (%s, %d genes%s).",
-        pol_status, nrow(pol),
-        if (is.null(system_id)) "" else paste0(" in system ", system_id)))
+        pol_status, nrow(pol), in_sys))
       if (!nrow(pol))
         stop("no polarity rows for system_id = ", system_id,
              "; check the id against dmsa_systems()", call. = FALSE)

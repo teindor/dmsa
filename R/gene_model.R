@@ -97,7 +97,7 @@
   if (ncol(d) < 9)
     stop("this does not look like GFF3/GTF: ", ncol(d), " columns, expected 9",
          call. = FALSE)
-  names(d)[1:9] <- c("chr", "src", "type", "start", "end", "score", "strand",
+  names(d)[seq_len(9)] <- c("chr", "src", "type", "start", "end", "score", "strand",
                      "phase", "attr")
   d$start <- as.numeric(d$start); d$end <- as.numeric(d$end)
   d[is.finite(d$start) & is.finite(d$end), , drop = FALSE]

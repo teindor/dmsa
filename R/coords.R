@@ -140,11 +140,12 @@ dmsa_probe_coords <- function(probes, file = NULL, url = NULL, cache = NULL,
                     pos = suppressWarnings(as.numeric(man[[po]][i])),
                     stringsAsFactors = FALSE)
   n_ok <- sum(is.finite(out$pos))
+  absent <- if (n_ok < length(probes))
+    paste0(" (", length(probes) - n_ok, " absent - dmsa_plot_locus() ",
+           "then spaces every probe evenly rather than dropping them)")
+  else ""
   message("matched ", n_ok, " of ", length(probes), " probes from ", what,
-          if (n_ok < length(probes))
-            paste0(" (", length(probes) - n_ok, " absent - dmsa_plot_locus() ",
-                   "then spaces every probe evenly rather than dropping them)")
-          else "")
+          absent)
   out
 }
 

@@ -725,9 +725,10 @@
     ## looking for a Word table that was never attempted.
     if (!isTRUE(.rp_env$gt_said)) {
       .rp_env$gt_said <- TRUE
+      no_ext <- if (!ext %in% c("html", "docx")) paste0(" and no .", ext)
+      else ""
       message("gt is not installed, so the tables are written as .csv and ",
-              ".html only - no .docx",
-              if (!ext %in% c("html", "docx")) paste0(" and no .", ext) else "",
+              ".html only - no .docx", no_ext,
               ". install.packages(\"gt\") adds the Word table.")
     }
     .rp_html_fallback(df, paste0(file, ".html"), title)
@@ -1875,7 +1876,7 @@ print.dmsa_report <- function(x, ...) {
 .rp_level_names <- function(frame, oc) {
   k <- (frame$outcome_kind %||% list())[[oc]]
   ol <- frame$outcome_levels
-  if (!is.null(ol) && length(ol) >= 2L) return(as.character(ol)[1:2])
+  if (!is.null(ol) && length(ol) >= 2L) return(as.character(ol)[seq_len(2)])
   nm <- .lab(frame, oc)
   if (is.null(k) || is.na(k$lo)) return(c(nm, nm))
   c(paste0(nm, " = ", k$lo), paste0(nm, " = ", k$hi))

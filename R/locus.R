@@ -454,12 +454,13 @@ dmsa_plot_locus <- function(probes, gene = "", chrom = NA,
     if (gap > tol) {
       build_gap <- gap
       gb <- unique(stats::na.omit(as.character(p$genome)))
+      gb_txt <- if (length(gb) == 1L) paste0("say they are ", gb) else
+        "carry no genome label"
       message("GENOME BUILD MISMATCH? every probe is ", format(round(gap),
               big.mark = ","), " bp from the ", gene_model$genome[1],
               " gene model, and the gene is only ",
               format(g2 - g1, big.mark = ","), " bp long.\n",
-              "  Probe coordinates ", if (length(gb) == 1L)
-                paste0("say they are ", gb) else "carry no genome label",
+              "  Probe coordinates ", gb_txt,
               ". An EPIC manifest is typically hg19 and the bundled cascade ",
               "is hg38.\n  The panel is drawn, and says so, but do not ",
               "publish it until the builds agree.")
@@ -502,9 +503,9 @@ dmsa_plot_locus <- function(probes, gene = "", chrom = NA,
   ## a gene model needs its own depth, and a stacked one needs more per lane
   hB <- if (!is.null(gene_model)) 2.15 + 0.55 * (length(unique(gene_model$transcript)) - 1L) else
     if (has_reg) 2.35 else 1.75
-  if (draw_A) graphics::layout(matrix(1:3, ncol = 1),
+  if (draw_A) graphics::layout(matrix(seq_len(3), ncol = 1),
                                heights = c(0.95, hB, 3.9)) else
-                graphics::layout(matrix(1:2, ncol = 1),
+                graphics::layout(matrix(seq_len(2), ncol = 1),
                                  heights = c(hB + .3, 3.9))
 
   ## ---- A: the chromosome ---------------------------------------------------
