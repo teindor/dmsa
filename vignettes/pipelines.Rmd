@@ -1,0 +1,160 @@
+---
+title: "One door in: from any preprocessing pipeline to DMSA"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{One door in: from any preprocessing pipeline to DMSA}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+DMSA models probes as the multivariate response, so every engine wants the
+same two objects: a **samples x probes** matrix and a phenotype `data.frame`
+with rows in the same order. No mainstream preprocessing pipeline ends there.
+minfi ends in a `GenomicRatioSet` (probes in rows), sesame in a beta matrix
+(probes in rows), meffil and ewastools in matrices (probes in rows), ChAMP in
+`myNorm` plus a `pd` sheet, RnBeads in an `RnBSet`, methylprep in a CSV
+export. The gap between those shapes and the analysis is where silent
+mistakes live: a transposed matrix, M-values treated as betas, a sample sheet
+in a different order than the arrays.
+
+`dmsa_import()` is the one door in. It takes whichever end object a pipeline
+produced and returns an object `dmsa_frame()` accepts directly:
+
+```r
+dmsa_frame(dmsa_import(x, pheno = sheet), outcome = ..., ...)
+```
+
+(For a curated `SummarizedExperiment` where you want to pick the assay
+yourself - a `recountmethylation` download, say - the lower-level
+`dmsa_se()` does the split with no further opinions.)
+
+## The adapter in one example
+
+```{r}
+library(dmsa)
+set.seed(1)
+## the shape most pipelines produce: probes in rows, samples in columns
+B <- matrix(runif(60), nrow = 6,
+            dimnames = list(sprintf("cg%08d", 1:6), paste0("S", 1:10)))
+ph <- data.frame(Sample_Name = paste0("S", 1:10), age = rnorm(10))
+imp <- dmsa_import(B, pheno = ph)
+imp
+```
+
+Three things happened, none silently. The probe axis was identified from the
+dimension names and the matrix transposed; the value scale was detected
+(betas here - M-values are converted with a note, because `dmsa_frame()`
+converts betas to M-values itself and arriving twice-converted would corrupt
+the frame); and the sheet was matched to the sample names by identifier.
+Each of those is either unambiguous or an **error that says what to pass**:
+`orientation =` when neither axis has probe-looking names, `values =` to
+override the scale, `align_by =` to name the identifier column (minfi
+`Basename` paths and `Sentrix_ID`/`Sentrix_Position` pairs are tried
+automatically; `align_by = ".position"` declares same-order alignment
+explicitly). A raw container - an `RGChannelSet`, a list of sesame `SigDF`s -
+is refused with the preprocessing recipe rather than half-handled.
+
+## The recipes
+
+None of these packages are dmsa dependencies; the chunks are not run here.
+
+```r
+## minfi - any preprocessed object works via the SummarizedExperiment route
+rg  <- minfi::read.metharray.exp(targets = targets)
+gr  <- minfi::ratioConvert(minfi::mapToGenome(minfi::preprocessNoob(rg)))
+imp <- dmsa_import(gr)                        # colData is the sheet
+imp <- dmsa_import(minfi::preprocessRaw(rg))  # Meth/Unmeth handled too
+
+## sesame - openSesame() returns the beta matrix directly
+imp <- dmsa_import(sesame::openSesame(idat_dir), pheno = sheet)
+
+## ewastools
+mt  <- ewastools::read_idats(sheet$Basename)
+imp <- dmsa_import(ewastools::dont_normalize(mt), pheno = sheet)
+
+## meffil
+qc   <- meffil::meffil.qc(samplesheet, verbose = FALSE)
+norm <- meffil::meffil.normalize.quantiles(qc, number.pcs = 5)
+imp  <- dmsa_import(meffil::meffil.normalize.samples(norm), pheno = samplesheet)
+
+## ChAMP
+load <- ChAMP::champ.load(directory, arraytype = "EPIC")
+imp  <- dmsa_import(ChAMP::champ.norm(beta = load$beta), pheno = load$pd)
+
+## RnBeads - extract, then import
+imp <- dmsa_import(RnBeads::meth(rnb.set, row.names = TRUE),
+                   pheno = RnBeads::pheno(rnb.set))
+
+## methylprep - export betas to CSV, then import the file
+imp <- dmsa_import("beta_values.csv", pheno = "sample_sheet.csv")
+```
+
+## Does the pipeline choice change the answer? A real-data check
+
+If preprocessing choice changed DMSA's conclusions, the adapter would be a
+convenience and a hazard. So we put one plate of real arrays through five
+pipelines and asked the same two pre-registered questions of each result.
+
+**Data.** 94 EPIC v1 arrays (one plate; 48 couples' families, 12 chips) from
+Project Alpha's first batch - and, importantly, a *different physical scan*
+of these participants than the arrays behind the package's bundled maps: the
+two sets share zero barcodes. Person- and sample-level covariates (sex, age,
+epithelial and fibroblast fractions) were joined from the canonical study
+table by participant id; array-level structure (chip) entered as a random
+intercept over this plate's own 12 chips; the canonical arrays'
+control-probe surrogate variables were omitted, since they describe other
+physical arrays. Across pipelines, everything was therefore identical except
+the preprocessing.
+
+**Questions.** (A) The pre-registered positive control: the immune,
+inflammation & HLA system against the immune-cell fraction IC (with the
+registered deviation - the epithelial fraction leaves the covariate set,
+because IC = 1 - Epi - Fib makes the full set rank-deficient). Cell
+composition is a signal known to dominate blood methylation; a method that
+misses it is broken. (B) A theory pairing expected to stay quiet at this
+sample size: the HPA axis against a symptom inventory (BSI). All runs:
+`system > module > gene > probe`, B = 1999 permutations, seed 1.
+
+**Result.** The control fired at the permutation floor in all five
+pipelines - p = 0.0005 is 1/(B+1): not one of 1,999 permutations reached the
+observed statistic - including on ewastools' completely unnormalized betas:
+
+| pipeline    | preprocessing            | usable probes | system p | aligned direction |
+|-------------|--------------------------|:---:|:------:|:---:|
+| minfi noob  | noob background/dye      | 34  | 0.0005 | +   |
+| minfi raw   | none (Meth/Unmeth ratio) | 35  | 0.0005 | +   |
+| meffil      | functional normalization | 34  | 0.0005 | +   |
+| sesame      | openSesame default       | 26  | 0.0005 | +   |
+| ewastools   | none                     | 34  | 0.0005 | +   |
+
+The agreement runs the whole cascade down. All 8 immune modules were
+selected in every pipeline. At gene level, 18-20 genes were significant per
+pipeline and **17 in all five** (Jaccard 0.81): the HLA class I/II battery
+(HLA-DMB, -DOB, -DPA1, -DPB1, -DQA2, -DRA, -E, -F, HLA-F-AS1) with ICAM1,
+IL10, IL12RB1, IL12RB2, IL18, NLRP3, TLR4 and TNF; gene-level aligned
+directions were identical across all five pipelines for 92% of the shared
+genes. And the null behaved: HPA x BSI came back non-significant in every
+pipeline (p = 0.41-0.81), with the cascade never descending - zero modules
+and zero genes selected, in any pipeline.
+
+The one visible pipeline difference is coverage, not conclusions: sesame's
+default masking left 26 usable probes where the others kept 34-35 - a
+deliberate conservatism, reported by the frame, changing nothing downstream.
+
+**Why this is expected, not lucky.** DMSA's families are declared in the map
+rather than harvested from whatever the analyst loaded, the probe directions
+are fixed by the direction catalogue before any data arrive, and the
+permutation null is computed under the same transform as the observed
+statistic. Preprocessing can move individual betas and drop probes; what it
+does not get to do is redefine the hypothesis, the alignment, or the
+reference distribution. The pipeline choice moves probe counts; the answer
+stays the answer.
+
+```r
+## install
+remotes::install_github("teindor/dmsa")
+```

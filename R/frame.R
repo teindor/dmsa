@@ -508,6 +508,13 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   correction <- match.arg(correction); plot_type <- match.arg(plot_type)
   weighting <- match.arg(weighting)
   table_type <- match.arg(table_type)
+  ## dmsa_import() hands the frame both halves in one object: unwrap it so
+  ## `dmsa_frame(dmsa_import(x, ...), outcome = ...)` is the whole bridge
+  ## from any preprocessing pipeline to the analysis.
+  if (inherits(data, "dmsa_import")) {
+    if (is.null(methylation)) methylation <- data$methylation
+    data <- data$data
+  }
   data <- as.data.frame(data)
   cor <- data.frame(field = character(), issue = character(),
                     action = character(), stringsAsFactors = FALSE)
@@ -882,6 +889,11 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   if (is.matrix(methylation)) {
     key <- if (all(mp$column %in% colnames(methylation))) mp$column else mp$probe
     BE <- methylation[cc, match(key, colnames(methylation)), drop = FALSE]
+    ## every downstream consumer (sets$columns, the reporters, the aligner)
+    ## keys on the map's `column` names. A matrix keyed by bare probe ids was
+    ## accepted here but then indexed out of bounds in the pilot run - so
+    ## normalise the extracted block to the canonical column names at once.
+    colnames(BE) <- mp$column
   } else BE <- as.matrix(base[, mp$column, drop = FALSE])
   mode(BE) <- "numeric"
   okc <- apply(BE, 2, function(z) all(is.finite(z)))

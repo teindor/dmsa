@@ -1,3 +1,51 @@
+# dmsa 0.99.7
+
+* **New: `dmsa_import()` - one door in from every preprocessing pipeline.**
+  Takes the end object of minfi (any `SummarizedExperiment` - a
+  `GenomicRatioSet`, `MethylSet` and relatives are recognised structurally,
+  no minfi dependency), sesame (`openSesame()` beta matrix), meffil,
+  ewastools and ChAMP (beta/M matrices in either orientation), RnBeads and
+  methylprep (exports), or a `.csv`/`.rds` path, and returns a
+  `dmsa_import` object holding a samples-by-probes beta matrix plus an
+  aligned phenotype sheet. `dmsa_frame()` accepts it directly as its first
+  argument, so the whole bridge is
+  `dmsa_frame(dmsa_import(x, pheno), outcome = ...)`.
+
+  Nothing is guessed silently: probe-axis orientation is read from the
+  dimension names or must be declared; M-values are detected by range and
+  converted to betas with a note (`dmsa_frame()` converts betas to M-values
+  itself, so arriving in M twice would corrupt the frame); and the sample
+  sheet is matched to the array names by identifier - literal columns,
+  minfi `Basename` paths, or the `Sentrix_ID`/`Sentrix_Position` pair -
+  with ambiguity and failure as errors that name what was tried.
+  Raw containers (an `RGChannelSet`, a list of sesame `SigDF`s) are refused
+  with the preprocessing recipe rather than half-handled.
+
+* **New vignette - "One door in: from any preprocessing pipeline to DMSA".**
+  The adapter's rules and per-pipeline recipes, plus a real-data invariance
+  check: 94 EPIC arrays - a different physical scan of the canonical
+  participants, sharing zero barcodes with the bundled maps' source - through
+  minfi noob, minfi raw, meffil, sesame and ewastools, then the same two
+  pre-registered questions asked of every result. The positive control
+  (immune, inflammation & HLA x immune-cell fraction) hit the permutation
+  floor (p = 0.0005 = 1/(B+1), B = 1999) in **all five pipelines**, raw
+  unnormalized betas included, with all 8 modules selected everywhere and 17
+  genes significant in all five (Jaccard 0.81, gene directions identical for
+  92% of shared genes). The theory null (HPA x BSI) stayed null in all five
+  (p = 0.41-0.81) with the cascade never descending. The pipeline choice
+  moved probe counts (sesame's default masking: 26 usable vs 34-35), never
+  the answer.
+
+* **Fixed: a methylation matrix keyed by bare probe ids failed downstream.**
+  `dmsa_frame(methylation = M)` with probe-id column names was accepted at
+  intake (the map keys on `column` OR `probe`), but the extracted block kept
+  the probe ids while every downstream consumer - the per-set column lists,
+  the reporters, the aligner - keys on the map's `column` names, so the
+  B = 49 pilot indexed out of bounds and the frame could not run. The
+  extracted block is now normalised to the canonical column names at
+  extraction. (Alpha builds carry methylation inside `data` under `column`
+  names and never hit this path.)
+
 # dmsa 0.99.6
 
 * **Permutation groupings now accept a column name - and the old failure mode
