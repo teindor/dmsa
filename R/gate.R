@@ -62,8 +62,12 @@
 #' @param B Permutations.
 #' @param winsor Passed to \code{dmsa_scores()}.
 #' @param seed Optional integer.
-#' @param gate Logical. If \code{TRUE} (default) a level is entered only after the level above it has produced a surviving unit, which is the level-local cascade; if \code{FALSE} every declared level is tested independently.
-#' @param sparse_reach Integer. Maximum number of units carried forward from a level into the level below it, used to keep a wide family from expanding the cascade without bound.
+#' @param gate Which arm(s) to run: \code{"both"} (default), \code{"sparse"}
+#'   (survivors descend one unit at a time), or \code{"dense"} (a surviving
+#'   family descends whole).
+#' @param sparse_reach How far a sparse survivor reaches down the hierarchy:
+#'   \code{"children"} (default) descends one level; a level name (e.g.
+#'   \code{"probe"}) descends straight to that level.
 #' @return Object of class \code{dmsa_gate}.
 #' @examples
 #' set.seed(1)
@@ -91,7 +95,9 @@ dmsa_gate <- function(data, M, map, alignment, formula, term, roots,
     .old_seed <- if (exists(".Random.seed", envir = globalenv()))
       get(".Random.seed", envir = globalenv()) else NULL
     on.exit(if (!is.null(.old_seed))
-      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+      assign(".Random.seed", .old_seed, envir = globalenv())
+      else if (exists(".Random.seed", envir = globalenv()))
+        rm(".Random.seed", envir = globalenv()), add = TRUE)
     set.seed(seed)
   }
   data <- as.data.frame(data); M <- as.matrix(M)

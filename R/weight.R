@@ -125,3 +125,35 @@ dmsa_relweights <- function(Z, units, mlt, w_floor = 1.5,
          "was recycled or the wrong column was chosen.", call. = FALSE)
   invisible(NULL)
 }
+
+## E9 (2026-08-29, PI-approved): guard the positional join between a matrix's
+## columns and an alignment's rows. The engines apply multiplier k to column k
+## BY POSITION; when both sides carry names, that assumption is checked on the
+## canonical CpG id (the "cg..." prefix), because matrix columns are often the
+## panel's suffixed design names while the alignment carries bare probe ids.
+## Outcomes: "ok" (orders agree, proceed), a reorder permutation (same unique
+## set, different order - fixable unambiguously), a hard error (overlapping
+## but different/misordered sets - the silent-scramble case this exists to
+## kill), or "positional" (no overlap even canonically: different naming
+## conventions; the caller's order is trusted, exactly as before this guard).
+.dmsa_align_order <- function(m_names, al_probes, what = "alignment") {
+  if (is.null(m_names) || is.null(al_probes) ||
+      length(m_names) != length(al_probes)) return("positional")
+  canon <- function(x) {
+    x <- as.character(x)
+    ifelse(grepl("^cg[0-9]+", x), sub("^(cg[0-9]+).*$", "\\1", x), x)
+  }
+  cm <- canon(m_names); ca <- canon(al_probes)
+  if (identical(cm, ca)) return("ok")
+  if (!length(intersect(cm, ca))) return("positional")
+  if (setequal(cm, ca) && !anyDuplicated(cm) && !anyDuplicated(ca))
+    return(match(cm, ca))
+  bad <- utils::head(unique(c(setdiff(cm, ca), setdiff(ca, cm),
+                              cm[cm != ca])), 5)
+  stop("the ", what, "'s probes and the matrix columns overlap but do not ",
+       "line up (first differences: ", paste(bad, collapse = ", "), ").\n",
+       "Multipliers are applied BY POSITION, so proceeding would put ",
+       "direction calls on the wrong probes. Reorder one side so they match ",
+       "(dmsa_align() returns rows in the order of the probes you pass it).",
+       call. = FALSE)
+}

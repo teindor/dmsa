@@ -51,10 +51,10 @@ outermost first (e.g. system, module, gene, probe).}
 
 \item{gate}{\code{"both"}, \code{"sparse"} or \code{"dense"}.}
 
-\item{family_correction}{Character. Family-wise correction applied inside each level-local family: \code{"maxT"} (default) Westfall-Young step-down on the strength scale, or \code{"minP"} step-down on marginal p-values. The choice is consequential and should be fixed in advance; see the package vignette and \code{REPRODUCE.md}.
-sparse arm may look straight at.}
+\item{family_correction}{Character. Family-wise correction applied inside each level-local family: \code{"maxT"} (default) Westfall-Young step-down on the strength scale, or \code{"minP"} step-down on marginal p-values. The choice is consequential and should be fixed in advance; see the package vignette and \code{REPRODUCE.md}.}
 
-\item{sparse_reach}{\code{"children"} or the name of a deeper level a unit's}
+\item{sparse_reach}{\code{"children"} or the name of a deeper level a unit's
+sparse arm may look straight at.}
 }
 \value{
 Object of class \code{dmsa_gate}.

@@ -95,7 +95,11 @@ dmsa_fit <- function(data, probes, alignment, design,
     .old_seed <- if (exists(".Random.seed", envir = globalenv()))
       get(".Random.seed", envir = globalenv()) else NULL
     on.exit(if (!is.null(.old_seed))
-      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+      assign(".Random.seed", .old_seed, envir = globalenv())
+      else if (exists(".Random.seed", envir = globalenv()))
+        ## E10: a true restore of "no prior RNG state" - otherwise a fresh
+        ## session leaves deterministically seeded mid-stream of `seed`
+        rm(".Random.seed", envir = globalenv()), add = TRUE)
     set.seed(seed)
   }
   data <- as.data.frame(data)
@@ -169,7 +173,14 @@ dmsa_fit <- function(data, probes, alignment, design,
       if (is.null(fit)) next
       if (isTRUE(lme4::isSingular(fit))) sing <- sing + 1L
       cf <- stats::coef(summary(fit))
-      nm <- rownames(cf)[fi <- match(colnames(X)[fi], rownames(cf))]
+      ## E1 fix (2026-08-29, PI-approved): a vestigial lookup here used to
+      ## REASSIGN `fi` - the focal COLUMN index of the design matrix - to a
+      ## ROW index of lmer's coefficient table, inside an unused assignment.
+      ## lm_bse(), which builds the whole permutation null after this loop,
+      ## reads `fi` from the enclosing environment: whenever lme4 dropped or
+      ## reordered a term, every null statistic pooled a DIFFERENT
+      ## coefficient than the observed one. `fi` now means "focal column of
+      ## X" from start to finish; `k` below does the coefficient-row lookup.
       k <- match(colnames(X)[match(design$focal_test, colnames(X))], rownames(cf))
       k <- if (is.na(k)) match(design$focal_test, rownames(cf)) else k
       if (!is.na(k)) { bl[j] <- cf[k, 1]; sel[j] <- cf[k, 2] }

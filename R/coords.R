@@ -135,9 +135,16 @@ dmsa_probe_coords <- function(probes, file = NULL, url = NULL, cache = NULL,
   pc <- pick(probe_col, "probe"); cc <- pick(chr_col, "chromosome")
   po <- pick(pos_col, "position")
   i <- match(probes, as.character(man[[pc]]))
+  .pos <- suppressWarnings(as.numeric(man[[po]][i]))
+  ## E10 (PI-approved): the Zhou-lab *_beg columns follow the BED convention
+  ## (0-based), while everything drawn beside them (Ensembl gene models,
+  ## MAPINFO) is 1-based. Convert, so a probe never sits 1 bp left of its
+  ## own exon in a locus figure. A generic `start` column is NOT shifted:
+  ## R-side exports (GRanges and friends) use 1-based starts.
+  if (grepl("_beg$", po)) .pos <- .pos + 1
   out <- data.frame(probe = probes,
                     chr = sub("^chr", "", as.character(man[[cc]])[i]),
-                    pos = suppressWarnings(as.numeric(man[[po]][i])),
+                    pos = .pos,
                     stringsAsFactors = FALSE)
   n_ok <- sum(is.finite(out$pos))
   absent <- if (n_ok < length(probes))

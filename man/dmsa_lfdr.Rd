@@ -21,9 +21,28 @@ frequentist rule.}
 numeric vector of local fdr values, or NULL if not estimable.
 }
 \description{
-Efron-style two-group model on z-values: the null is fitted to the central
-mass, the alternative is a wider normal, and \code{pi0} comes from the
-central proportion. Returns one local fdr per unit.
+Efron-style two-group model on z-values: the null centre and scale are
+fitted on an iteratively trimmed core (robust to a minority signal slab),
+\code{pi0} is the observed mass inside the window that holds 50% under
+the fitted null, and the alternative is a wider normal. Returns one local
+fdr per unit.
+}
+\details{
+Assumptions, stated plainly (calibrated by simulation, 2026-08-29):
+signal must be a MINORITY of units - power is good to roughly a third
+signal and collapses conservatively (toward selecting nothing) beyond
+that; weak signal (|z| ~ 2) is largely invisible to the EB arm (also
+conservative); and the null must be approximately GAUSSIAN. A null with
+both tails significantly heavier than the fitted Gaussian - kurtosis,
+which the two-group model would misread as signal - is detected by a
+two-radius symmetric-tail-excess guard and the function returns
+\code{NULL} with a warning, the callers' documented fall-back to the
+frequentist rule. The guard keys on BOTH tails being in excess, so
+one-sided signal does not trip it (~3%, same as a pure Gaussian null);
+symmetric two-sided signal DOES trip it and is handled by the frequentist
+arm instead - a conservative, never a silent, outcome. Residual risk:
+with only a few hundred units a heavy-tailed null is detected in about
+two runs of three; below that scale prefer the frequentist engine.
 }
 \examples{
 set.seed(1)

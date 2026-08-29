@@ -17,9 +17,13 @@
 #     that carries to products - so moderation runs are composite-only and say
 #     so in the report.
 #
-# cpg_map: "confidence" (default) keeps probes whose direction call meets the
-# high-confidence bar (tier A or SMR S1); "full" keeps every probe with any
-# usable direction call. BOTH alignments are built regardless; any gene or
+# cpg_map: "full" (DEFAULT) keeps every CpG-gene pair that carries a usable
+# direction call; "confidence" is an OPT-IN sensitivity that keeps only the
+# pairs meeting the high-confidence bar (tier A or SMR S1). "full" is the
+# default because a usable direction is what DMSA needs to align a probe -
+# the confidence bar is a stricter subset of that, not a different
+# definition of membership, and it must never change which genes belong to
+# a system. BOTH alignments are built regardless; any gene or
 # system whose pooled direction flips between the two maps is analysed under
 # the chosen map but warned about, listed in frame$map_conflicts, and repeated
 # in the report's Design notes.
@@ -196,9 +200,62 @@
 ## actually varies inside the finest permutation block. Testing only "binary +
 ## has blocks" would misclassify sex in the parent build, where a family block
 ## (cID) legitimately contains both parents.
+## Spec 50: resolve `outcome_type` into one declared family per outcome.
+## Accepts a single value (applies to every outcome) or a vector naming every
+## outcome. Unnamed multi-element input is refused: positional matching of
+## families to outcomes is exactly the kind of silent mis-pairing this fixes.
+.frame_otypes <- function(value, outcome) {
+  ok <- c("gaussian", "logistic", "multinomial")
+  ## the caller resolves the missing-argument default BEFORE this function, so
+  ## a literal c("gaussian","logistic","multinomial") arriving here is a real
+  ## (unnamed, positional) user input and falls through to the refusal below.
+  if (!is.character(value) || !length(value) || anyNA(value))
+    stop("`outcome_type` must be a character vector naming one family per ",
+         "outcome. Allowed values: ", paste(ok, collapse = ", "), ".",
+         call. = FALSE)
+  bad <- setdiff(value, ok)
+  if (length(bad))
+    stop("`outcome_type` value(s) not recognised: ",
+         paste(unique(bad), collapse = ", "), ".\nAllowed: ",
+         paste(ok, collapse = ", "), ".", call. = FALSE)
+  nm <- names(value)
+  if (length(value) == 1L && (is.null(nm) || !nzchar(nm)))
+    return(stats::setNames(rep(value, length(outcome)), outcome))
+  if (is.null(nm) || !all(nzchar(nm)))
+    stop("`outcome_type` has ", length(value), " values for ", length(outcome),
+         " outcome(s) but does not name them.\nEach family must be attached to ",
+         "its outcome by name, e.g.\n  outcome_type = c(",
+         paste(sprintf("%s = \"gaussian\"", outcome), collapse = ", "), ")\n",
+         "Positional matching is not accepted here: a family silently paired ",
+         "with the wrong outcome is not detectable in the output.",
+         call. = FALSE)
+  extra <- setdiff(nm, outcome)
+  if (length(extra))
+    stop("`outcome_type` names column(s) that are not outcomes: ",
+         paste(extra, collapse = ", "), ".\nOutcomes: ",
+         paste(outcome, collapse = ", "), ".", call. = FALSE)
+  gap <- setdiff(outcome, nm)
+  if (length(gap))
+    stop("`outcome_type` does not declare a family for outcome(s): ",
+         paste(gap, collapse = ", "), ".\nWhen `outcome_type` is named it must ",
+         "name every outcome - an undeclared one would fall back to gaussian ",
+         "without saying so.", call. = FALSE)
+  if (anyDuplicated(nm))
+    stop("`outcome_type` names an outcome more than once: ",
+         paste(unique(nm[duplicated(nm)]), collapse = ", "), call. = FALSE)
+  value[outcome]
+}
+
 .frame_outcome_kind <- function(base, oc, blockv, build) {
   v <- base[[oc]]
-  u <- sort(unique(v[is.finite(v)]))
+  ## a two-level outcome is binary WHATEVER its storage type: a 0/1 numeric,
+  ## a logical, a factor, or a character column all describe the same group
+  ## contrast, and the report's direction sentence must say so for all of
+  ## them (a factor-coded pills column used to fall through to "continuous"
+  ## and produce "Higher pills_past_T1 was associated ..." for a 0/1
+  ## variable - PI, 2026-08-29)
+  u <- if (is.numeric(v)) sort(unique(v[is.finite(v)])) else
+    sort(unique(as.character(v[!is.na(v) & as.character(v) != ""])))
   if (length(u) != 2L) return(list(kind = "continuous", lo = NA, hi = NA))
   within <- FALSE
   if (identical(build, "before_after") && length(blockv)) {
@@ -238,7 +295,10 @@
   if (length(miss))
     stop("map is missing column(s): ", paste(miss, collapse = ", "),
          call. = FALSE)
-  mp <- mp[!duplicated(mp$column), , drop = FALSE]
+  ## spec 11: NO dedup by column. One physical column mapping to several
+  ## genes is the design (co-effects), not a duplicate; the bundled snapshot
+  ## happens to be one row per column, so for it this changes nothing, but a
+  ## user map may legitimately carry pairs.
   usable <- is.finite(mp$best_direction)
   hi <- usable
   if (!is.null(mp$best_tier) || !is.null(mp$smr_tier)) {
@@ -375,7 +435,70 @@
 #'   \code{data}), a character vector of column names, or a numeric matrix
 #'   whose colnames are probe/column ids.
 #' @param map "alpha" for the bundled Project Alpha map, or a data.frame.
+#'   Used by the BUNDLED direction source only; passing a table forces
+#'   \code{direction_source = "bundled"}.
+#' @param reference The biological reference (system > module > gene) that
+#'   defines membership on the pair path: \code{"alpha"} (default, the 2026c
+#'   codebook - 30 systems, 187 modules, 1,282 genes) or a
+#'   \code{dmsa_reference} object. The reference never selects CpGs: which
+#'   CpGs exist is read from the data, which genes they support from
+#'   cpgdirection, and the reference then says which of those genes belong to
+#'   the biology being asked about.
+#' @param direction_source Where CpG-to-gene direction comes from.
+#'   \code{"auto"} (default) uses \code{cpgdirection::cpg_gene_pairs()} -
+#'   one row per CpG x gene pair, direction resolved within the pair,
+#'   pair-specific abstention - when cpgdirection is installed, and otherwise
+#'   falls back to the bundled per-column Alpha snapshot with a recorded
+#'   note. \code{"cpgdirection"} requires the package; \code{"bundled"}
+#'   forces the snapshot. On the pair path the frame keeps the full pair
+#'   ledger (\code{$pair_ledger}; see \code{dmsa_coverage()}). For testing,
+#'   \code{options(dmsa.pair_table = <pair data.frame>)} injects a pair table
+#'   in place of the live \code{cpg_gene_pairs()} call - the regression suite
+#'   uses this seam so the pair path is exercised on machines where
+#'   cpgdirection is not installed.
+#' @param tissue Tissue context for pair discovery: \code{"blood"} (default),
+#'   \code{"nasal_epithelium"}, or \code{"solid_tissue"}. Pair path only.
+#' @param replicate_policy \code{"collapse_site"} (default): several probe
+#'   designs of one CpG are ONE measurement, averaged on the beta scale
+#'   before analysis (a missing value in any replicate keeps the site visible
+#'   to \code{missing_methylation} rather than quietly narrowing its basis);
+#'   \code{"keep_correlated"} keeps every design as its own measurement.
+#'   Pair path only.
+#' @param cpgs_include,cpgs_exclude Optional CpG-set selection by NAME
+#'   pattern, for methylation files that carry several biological groups in
+#'   one table (in Alpha's child file, \code{"_maternal"} and
+#'   \code{"_paternal"} mark the parents' probes; the child's carry no
+#'   tag). Fixed substrings, not regular expressions: a CpG column survives
+#'   \code{cpgs_include} if its name contains ANY of the patterns
+#'   (\code{NULL} = all), and is then removed by \code{cpgs_exclude} if it
+#'   contains any of those. Analysing the child is one line:
+#'   \code{cpgs_exclude = c("_maternal", "_paternal")}. Only CpG-site
+#'   columns are filtered - outcomes and covariates are never touched - and
+#'   the drop is recorded in the corrections table. See also
+#'   \code{dmsa_cpg_columns()} for the same filter as a standalone helper.
 #' @param system,module,gene,probe logical: which levels to analyse.
+#' @param sample_id Optional column of \code{data} holding sample
+#'   identifiers. When the methylation matrix carries rownames, rows are
+#'   matched by identifier and reordered to match \code{data}; any
+#'   mismatch or duplication is an error rather than a silent
+#'   realignment.
+#' @param sample_align "id" (default) matches a methylation matrix to
+#'   \code{data} by sample identifier where identifiers exist;
+#'   "positional" declares that the rows are already in the same order.
+#'   With no identifiers on either side a shuffle is undetectable, so
+#'   alignment falls back to positional and is recorded in the
+#'   corrections table.
+#' @param missing_methylation What to do when the methylation block contains
+#'   missing or non-finite values. \code{"error"} (default) stops and reports
+#'   how many probes and samples are affected; \code{"drop_probes"} removes the
+#'   affected probes and records it; \code{"common_complete_rows"} keeps every
+#'   probe and analyses the samples complete across all of them. There is no
+#'   silent option: downstream a probe with any non-finite value is dropped
+#'   from its set, and that must be a declared choice.
+#' @param methylation_scale \code{"auto"} (default) treats values inside
+#'   [0, 1] as beta and converts them to M-values; \code{"beta"} declares them
+#'   beta, and values outside [0, 1] are then an error rather than being
+#'   clamped; \code{"M"} declares M-values and converts nothing.
 #' @param systems Optional subset of systems to analyse. Accepts the selection
 #'   cascade's short names - \code{systems = c("hpa", "oxytocin")} - and also
 #'   system ids or full names. Matching is case-insensitive and a unique prefix
@@ -389,13 +512,39 @@
 #'   \code{dmsa_selection} may be supplied instead, and \code{NULL} disables it
 #'   (module membership then falls back to the legacy bundled module map). See
 #'   \code{dmsa_sets_template()} for the schema.
-#' @param outcome character vector of outcome column(s). With several, each is
-#'   tested with the others as covariates (mutual adjustment). When
-#'   \code{frame_role = "outcome"} these are the exposure/predictor column(s).
+#' @param ... Not for new arguments. The former \code{outcome} argument is
+#'   accepted here so existing scripts keep working (it means exactly
+#'   \code{outcomes}); anything else is an error. A side effect of this slot:
+#'   every argument after \code{data} and \code{methylation} must be given
+#'   by its full name.
+#' @param outcomes Which column(s) of \code{data} the methylation is tested
+#'   against - the phenotype side of the model. With several, each is tested
+#'   in turn with the others entering as covariates (mutual adjustment). If
+#'   your question runs the other way - these columns PREDICT the
+#'   methylation - name them with \code{predictors =} instead and skip
+#'   \code{frame_role} entirely.
+#' @param predictors The natural spelling when METHYLATION IS YOUR OUTCOME:
+#'   which column(s) of \code{data} predict the methylation frame. Passing
+#'   \code{predictors =} sets \code{frame_role = "outcome"} for you (an
+#'   explicit \code{frame_role = "predictor"} alongside it is a
+#'   contradiction and errors). Same columns as \code{outcome}, opposite
+#'   reading; give exactly ONE of outcome / outcomes / predictors.
 #' @param covariates "contract" for the Alpha student contract, or a character
 #'   vector. chip is added as a fixed factor automatically when present.
-#' @param random_effects column(s) defining exchangeable blocks (permutation
-#'   blocks); default "cID".
+#' @param random_effects Your random-effect grouping factor(s), stated the
+#'   way you think about them (lme4-style). ONE factor - \code{"cID"} for
+#'   couples - defines the exchangeability blocks: rows of one group travel
+#'   together under permutation. TWO factors and \code{dmsa_frame()} works
+#'   out the structure itself and says so in lme4 notation: NESTED (e.g.
+#'   couples on the same chip, \code{(1 | chip/cID)}) blocks on the nested
+#'   pair exactly as before, with the coarse factor's variance component
+#'   left to \code{chip =}; CROSSED (e.g. partners of one couple on
+#'   DIFFERENT chips, \code{(1 | cID) + (1 | chip)}) routes the finest
+#'   dependence factor to the blocks and the other into the \code{(1 | .)}
+#'   random intercept - crossing them into one block would make every group
+#'   a singleton, which is the error this replaces. Aliased factors are
+#'   detected; three or more are refused (the engine fits one block
+#'   structure and one intercept).
 #' @param chip how to handle the array/chip batch factor. \code{TRUE} (default)
 #'   enters it as a fixed effect, using \code{chip_f} if present and otherwise
 #'   building it from a \code{chip}/\code{chip_T*} column. \code{FALSE} leaves
@@ -421,26 +570,76 @@
 #'   \code{chip} says. Validity does not rest on the variance component being
 #'   right: the permutation null is computed under the same transform, so the
 #'   random-intercept fit moves power, not type-I error.
-#' @param outcome_levels Optional length-2 character vector naming the two
-#'   levels of a two-level outcome, e.g. \code{c("T1", "T4")} or
-#'   \code{c("female", "male")}. Used only in the written report, so a
-#'   sentence can say which level is which instead of falling back to
-#'   \code{outcome = 0} / \code{outcome = 1}. \code{NULL} (default) uses
-#'   that fallback. Purely cosmetic: no level name reaches the model, the
-#'   permutation or the family-wise correction.
+#' @param outcome_levels Optional labels for the two levels of a two-level
+#'   outcome, used only in the written report so a sentence can say
+#'   "taking pills [1] ... than not taking pills [0]" instead of falling
+#'   back to \code{outcome = 0} / \code{outcome = 1}. Either a length-2
+#'   character vector - honoured when the frame has ONE outcome - or a
+#'   named list with one such pair per outcome, e.g.
+#'   \code{list(pills_past_T1 = c("not taking pills", "taking pills"))},
+#'   which works for any number of outcomes. Each pair is safest given as
+#'   a NAMED vector matched by coded value, e.g. \code{c("0" = "not
+#'   taking pills", "1" = "taking pills")} - immune to flipping whatever
+#'   the coding (1/2, 0/1, "a"/"b"); an unnamed pair is taken in
+#'   sorted-value order (low, high), and a name that is not one of the
+#'   variable's two actual levels is an immediate error naming them. \code{NULL} (default) uses the coded-value fallback.
+#'   Purely cosmetic: no level name reaches the model, the permutation or
+#'   the family-wise correction. Spell it the way you declared the
+#'   variable: with \code{outcomes = } use this argument; with
+#'   \code{predictors = } use \code{predictor_levels} - same meaning,
+#'   your vocabulary.
+#' @param predictor_levels The same level labels, for a frame declared with
+#'   \code{predictors = } (\code{frame_role = "outcome"}): someone who
+#'   wrote \code{predictors = "pills_past_T1"} thinks of pills as a
+#'   predictor, so the labels are asked for in those words. Exactly one of
+#'   \code{predictor_levels}/\code{outcome_levels} may be given, and each
+#'   requires its matching declaration.
 #' @param moderation,mod,mod2 moderation switch and moderator column(s); see
 #'   the layout note above.
-#' @param outcome_label,predictor_labels,mod_label,mod2_label Optional display
-#'   labels used in figures and in the written report instead of the raw column
-#'   names. Either one per column, in order, or a named vector keyed by column
-#'   name. Purely cosmetic: no label reaches the model, the permutation or the
+#' @param outcome_label,predictor_labels,covariate_labels,mod_label,mod2_label
+#'   Optional display NAMES used in figures and the written report instead of
+#'   raw column names, spelled the way you declared each variable:
+#'   \code{predictor_labels} names the \code{predictors = } column(s),
+#'   \code{outcome_label} the \code{outcomes = } column(s) (the two are the
+#'   same column - give one, matching your declaration),
+#'   \code{covariate_labels} the covariates, and \code{mod_label}/
+#'   \code{mod2_label} are ONE name each for the moderator column(s) (a
+#'   moderator's LEVEL labels go in \code{mod_levels}). Either one per
+#'   column, in order, or a named vector keyed by column name. Purely
+#'   cosmetic: no label reaches the model, the permutation or the
 #'   family-wise correction.
+#' @param mod_levels Labels for the two LEVELS of a two-level moderator,
+#'   used in the moderation figures and prose. Safest as a named vector
+#'   matched by coded value - \code{mod_levels = c("1" = "Husband",
+#'   "2" = "Wife")} - which cannot flip whatever the coding; an unnamed
+#'   pair is taken in sorted-value order (low, high).
 #' @param type "linear", "non-linear" (linear/quadratic/threshold arms,
 #'   ACAT-combined), or "exponential" (adds an exp arm).
-#' @param outcome_type "gaussian", "logistic", or "multinomial".
-#' @param frame_role "predictor" (outcome ~ frame + covariates) or "outcome"
-#'   (named columns predict the methylation frame).
-#' @param cpg_map "confidence" or "full"; see the note above.
+#' @param outcome_type The declared family of each outcome: "gaussian",
+#'   "logistic", or "multinomial". A single value applies to every outcome. With
+#'   several outcomes of different kinds, name them -
+#'   \code{outcome_type = c(epds = "gaussian", depressed = "logistic")} - and
+#'   every outcome must be named. An unnamed vector of several values is
+#'   refused: a family paired positionally with the wrong outcome is not
+#'   visible anywhere in the output. The stored value is the bare string for a
+#'   single-outcome frame and a vector named by outcome otherwise.
+#' @param frame_role Which way the SECONDARY models face. Most callers never
+#'   need this argument: passing the phenotype columns as \code{predictors =}
+#'   sets it for you. The main DMSA path is
+#'   always \code{methylation ~ outcome + covariates}: a directional set
+#'   statistic on methylation is what DMSA estimates, and no argument turns that
+#'   around. \code{"predictor"} (default) faces the moderated model the same way
+#'   as the shape scan, \code{outcome ~ tone score x moderator};
+#'   \code{"outcome"} declares that the named columns predict the frame, giving
+#'   \code{tone score ~ outcome x moderator}. Because the shape scan cannot be
+#'   turned around, \code{frame_role = "outcome"} requires
+#'   \code{type = "linear"}. The resolved orientation of every path is stored on
+#'   the frame as \code{model_orientation} and printed.
+#' @param cpg_map "full" (default) or "confidence"; see the note above.
+#'   "full" analyses every CpG-gene pair with a usable direction call.
+#'   "confidence" is an opt-in sensitivity restricted to high-confidence
+#'   calls (tier A or SMR S1); it is a strict subset of "full" and never
+#'   redefines system, module or gene membership.
 #' @param B,alpha,seed,correction inference settings (correction is applied
 #'   within level-local families only).
 #' @param progress Show a 0-100% progress bar while \code{dmsa_report()} runs.
@@ -451,11 +650,26 @@
 #'   \code{FALSE} is silent. Defaults to \code{interactive()}, so a run never
 #'   makes noise during \code{R CMD check} or a testthat run. \pkg{beepr} is a
 #'   Suggests: without it this is silently a no-op.
-#' @param gene_models Draw real exon/intron structure under the probes in each
-#'   locus panel. \code{TRUE} fetches each gene's model from Ensembl, which
-#'   makes network calls, so it is off by default; you may also pass a table
-#'   built once with \code{\link{dmsa_gene_model}} and reused for every gene.
-#' @param palette,plots,tables,summary,plot_type,table_type,outdir output
+#' @param gene_models Draw real exon/intron structure (with the TSS) under
+#'   the probes in each locus panel. The default \code{"auto"} fetches the
+#'   model from Ensembl for NAMED genes only - a handful of small requests,
+#'   announced in the report log - and degrades to the bare coordinate axis
+#'   with a message when offline. \code{TRUE} forces the fetch,
+#'   \code{FALSE} never goes to the network, and a table built once with
+#'   \code{\link{dmsa_gene_model}} can be passed to stay offline with the
+#'   exons still drawn.
+#' @param palette Colour palette for every figure the report draws. One of
+#'   the \pkg{viridisLite} palettes - \code{"viridis"} (default; the
+#'   colour-blind-safe standard), \code{"magma"}, \code{"plasma"},
+#'   \code{"inferno"}, \code{"cividis"} (designed for deuteranopia),
+#'   \code{"mako"}, \code{"rocket"}, or \code{"turbo"} (vivid, not
+#'   colour-blind-safe - avoid for publication). All are perceptually
+#'   uniform and print safely in greyscale except \code{"turbo"}. If
+#'   \pkg{viridisLite} is not installed, any value falls back to base R's
+#'   \code{hcl.colors(..., "viridis")}, so the figures always draw. The
+#'   per-system accent colours of the overview panels come from a separate
+#'   fixed scheme and are not affected.
+#' @param plots,tables,summary,plot_type,table_type,outdir output
 #'   styling for \code{dmsa_report}.
 #' @param autofix TRUE: the test drive corrects what is safely correctable and
 #' @param weighting Character. Probe weighting engine within a unit: \code{"combined"} (default) fuses the flat and reliability statistics on one shared permutation stream, \code{"flat"} weights every usable aligned probe equally, \code{"reliability"} weights each probe by its item-rest correlation with the rest of its unit. Weights are computed from methylation alone, so the permutation null is unaffected.
@@ -474,40 +688,196 @@
 #'                 cID = rep(1:30, each = 2))
 #' sig <- 0.5 * outer(d$out1, map$best_direction * (map$gene == "G1"))
 #' d[map$column] <- plogis(matrix(rnorm(60 * nrow(map)), 60) + sig)
-#' dmsa_frame(d, map = map, outcome = "out1", covariates = "cov1",
+#' dmsa_frame(d, map = map, outcomes = "out1", covariates = "cov1",
 #'            random_effects = "cID", B = 99, outdir = tempfile("dmsa_ex"))
 #' @export
 dmsa_frame <- function(data, methylation = NULL, map = "alpha",
+                       reference = "alpha",
+                       direction_source = c("auto", "cpgdirection", "bundled"),
+                       tissue = "blood",
+                       replicate_policy = c("collapse_site", "keep_correlated"),
+                       cpgs_include = NULL, cpgs_exclude = NULL,
+                       sample_id = NULL,
+                       sample_align = c("id", "positional"),
+                       missing_methylation = c("error", "drop_probes",
+                                               "common_complete_rows"),
+                       methylation_scale = c("auto", "beta", "M"),
                        system = TRUE, module = FALSE, gene = TRUE,
                        probe = TRUE, systems = NULL, sets = "alpha",
-                       outcome,
+                       ...,
+                       outcomes = NULL, predictors = NULL,
                        covariates = "contract", random_effects = "cID",
                        chip = TRUE,
                        chip_effect = c("random", "fixed", "none"),
-                       outcome_levels = NULL,
+                       outcome_levels = NULL, predictor_levels = NULL,
                        moderation = FALSE, mod = "", mod2 = "",
                        outcome_label = NULL, predictor_labels = NULL,
                        mod_label = NULL, mod2_label = NULL,
+                       covariate_labels = NULL, mod_levels = NULL,
                        type = c("linear", "non-linear", "exponential"),
                        outcome_type = c("gaussian", "logistic", "multinomial"),
                        frame_role = c("predictor", "outcome"),
-                       cpg_map = c("confidence", "full"),
+                       cpg_map = c("full", "confidence"),
                        B = 1999, alpha = 0.05, seed = 1,
                        correction = c("maxT", "minP"),
                        weighting = c("combined", "reliability", "flat"),
                        w_floor = 1.5,
                        palette = "viridis", plots = TRUE, tables = TRUE,
-                       summary = TRUE, gene_models = FALSE,
+                       summary = TRUE, gene_models = "auto",
                        progress = interactive(), beep = interactive(),
                        plot_type = c("png", "pdf"),
                        table_type = c("html", "docx", "rtf"),
                        outdir = "dmsa_output", autofix = TRUE) {
+  .fr_explicit <- !missing(frame_role)
   chip_effect <- match.arg(chip_effect)
-  type <- match.arg(type); outcome_type <- match.arg(outcome_type)
+  type <- match.arg(type)
   frame_role <- match.arg(frame_role); cpg_map <- match.arg(cpg_map)
+
+  ## ---- the phenotype columns: outcomes OR predictors (PI, 2026-08-29) -----
+  ## One question, two spellings. `outcomes` = the columns the methylation is
+  ## tested against; `predictors` = the same columns when the question runs
+  ## the other way (methylation is the outcome), and naming them that way IS
+  ## the orientation declaration - frame_role follows automatically. The
+  ## former `outcome` argument is accepted through `...` so every existing
+  ## script keeps working, but it is no longer part of the interface.
+  .dots <- list(...)
+  .legacy <- if ("outcome" %in% names(.dots)) .dots[["outcome"]] else NULL
+  .dots[["outcome"]] <- NULL
+  if (length(.dots))
+    stop("unknown argument(s) to dmsa_frame(): ",
+         paste(names(.dots), collapse = ", "),
+         "\n(arguments after the first two must be given by their full ",
+         "names)", call. = FALSE)
+  .given <- c(outcomes = !is.null(outcomes),
+              predictors = !is.null(predictors),
+              outcome = !is.null(.legacy))
+  if (sum(.given) > 1L)
+    stop("give the phenotype columns ONCE: `",
+         paste(names(.given)[.given], collapse = "` and `"),
+         "` name the same columns (outcomes for outcome ~ frame, predictors ",
+         "for frame ~ predictors). Pick one.", call. = FALSE)
+  if (!is.null(predictors)) {
+    if (.fr_explicit && frame_role == "predictor")
+      stop("`predictors = ` says these columns PREDICT the methylation ",
+           "frame, but frame_role = \"predictor\" says the frame predicts ",
+           "them. Drop one of the two: `predictors` alone already sets the ",
+           "orientation.", call. = FALSE)
+    outcome <- predictors
+    frame_role <- "outcome"
+  } else outcome <- if (!is.null(outcomes)) outcomes else .legacy
+  ## level labels follow the SPELLING the user declared the variable with
+  ## (PI, 2026-08-29): someone who wrote `predictors = "pills_past_T1"`
+  ## thinks of pills as a predictor and reaches for `predictor_levels`;
+  ## `outcome_levels` is the same thing for `outcomes = `. One argument, in
+  ## the user's own vocabulary - never both.
+  if (!is.null(predictor_levels)) {
+    if (!is.null(outcome_levels))
+      stop("give the level labels ONCE: `predictor_levels` and ",
+           "`outcome_levels` label the same variable. Use predictor_levels ",
+           "with `predictors = `, outcome_levels with `outcomes = `.",
+           call. = FALSE)
+    if (is.null(predictors))
+      stop("`predictor_levels` labels the variable given as `predictors = `,",
+           " but the phenotype was given as `", 
+           if (!is.null(outcomes)) "outcomes" else "outcome",
+           " = `. Use `outcome_levels = ` to label it.", call. = FALSE)
+    outcome_levels <- predictor_levels
+  }
+  ## display-label spellings follow the same principle. `predictor_labels`
+  ## names the `predictors = ` column(s) - the PI's own call
+  ## (predictor_labels = "Used birth-control pills when met") is the
+  ## intended use. Covariate display names have their own argument,
+  ## `covariate_labels`. The old behaviour (predictor_labels silently
+  ## labelling the covariates) is gone: with `outcomes = ` it now errors
+  ## and points to the right argument.
+  if (!is.null(predictor_labels) && is.null(predictors))
+    stop("`predictor_labels` names the `predictors = ` column(s), but the ",
+         "phenotype was given as `outcomes = `. Use `outcome_label = ` for ",
+         "it; covariate display names go in `covariate_labels = `.",
+         call. = FALSE)
+  if (!is.null(predictor_labels) && !is.null(outcome_label))
+    stop("give the display name ONCE: `predictor_labels` and ",
+         "`outcome_label` name the same column(s).", call. = FALSE)
+  if (!is.null(predictor_labels)) outcome_label <- predictor_labels
+  ## mod_label is ONE display name for the moderator column; a length-2
+  ## vector is almost always intended as LEVEL labels - point there instead
+  ## of silently keeping only the first entry
+  if (!is.null(mod_label) && length(mod_label) > 1L)
+    stop("`mod_label` is one display NAME for the moderator column. ",
+         "Level labels (e.g. Husband/Wife for a 1/2 sex code) go in ",
+         "`mod_levels = c(\"1\" = \"Husband\", \"2\" = \"Wife\")`.",
+         call. = FALSE)
+  if (is.null(outcome) || !length(outcome))
+    stop("name the phenotype column(s) the methylation is tested against: ",
+         "`outcomes =`, or - when the columns PREDICT the methylation ",
+         "frame - `predictors =`.", call. = FALSE)
   correction <- match.arg(correction); plot_type <- match.arg(plot_type)
   weighting <- match.arg(weighting)
   table_type <- match.arg(table_type)
+  sample_align <- match.arg(sample_align)
+  missing_methylation <- match.arg(missing_methylation)
+  methylation_scale <- match.arg(methylation_scale)
+  direction_source <- match.arg(direction_source)
+  replicate_policy <- match.arg(replicate_policy)
+
+  ## ---- spec 21-24: analysis-LEVEL switches vs biological SELECTORS --------
+  ## `system` is a TRUE/FALSE switch (run the system level?); `systems` picks
+  ## which biological systems to analyse. Passing a system NAME to the singular
+  ## argument used to bind the switch, leave `systems = NULL` (= every system),
+  ## and run a whole-panel analysis the user never asked for. That must stop.
+  .lvl_switch <- function(value, nm, plural, selects) {
+    if (is.character(value) || is.factor(value))
+      stop("`", nm, "` does NOT select ", selects, ".\n",
+           "It is a TRUE/FALSE switch controlling whether the ",
+           toupper(nm), " ANALYSIS LEVEL is run.\n\n",
+           "You supplied:\n  ", nm, " = ",
+           paste(sprintf('"%s"', as.character(value)), collapse = ", "),
+           "\n\nTo select ", selects, " use the PLURAL argument:\n",
+           "  ", plural, " = ",
+           paste(sprintf('"%s"', as.character(value)), collapse = ", "), "\n\n",
+           "No analysis was run.", call. = FALSE)
+    if (!is.logical(value) || length(value) != 1L || is.na(value))
+      stop("`", nm, "` must be a single TRUE or FALSE (it switches the ",
+           toupper(nm), " analysis level on or off); got ",
+           if (length(value) != 1L) paste0("length ", length(value), " ")
+           else "", class(value)[1],
+           if (length(value) == 1L && is.na(value)) " NA" else "",
+           ". No analysis was run.", call. = FALSE)
+    invisible(TRUE)
+  }
+  .lvl_switch(system, "system", "systems", "biological systems")
+  .lvl_switch(module, "module", "modules", "biological modules")
+  .lvl_switch(gene,   "gene",   "genes",   "genes")
+  .lvl_switch(probe,  "probe",  "probes",  "probes")
+  ## gene_models is NOT in the strict-logical list: it also accepts "auto"
+  ## (fetch exon models for named genes, degrade offline) and a prebuilt
+  ## dmsa_gene_model() table
+  if (!(is.logical(gene_models) && length(gene_models) == 1L &&
+        !is.na(gene_models)) &&
+      !identical(gene_models, "auto") && !is.data.frame(gene_models))
+    stop("`gene_models` must be TRUE, FALSE, \"auto\", or a table from ",
+         "dmsa_gene_model()", call. = FALSE)
+  for (.nm in c("moderation", "plots", "tables", "summary",
+                "progress", "beep", "autofix")) {
+    .v <- get(.nm)
+    if (!is.logical(.v) || length(.v) != 1L || is.na(.v))
+      stop("`", .nm, "` must be a single TRUE or FALSE; got ",
+           if (length(.v) != 1L) paste0("length ", length(.v), " ") else "",
+           class(.v)[1], ". No analysis was run.", call. = FALSE)
+  }
+
+  ## `systems = "all"` is the readable spelling of "every system" (NULL keeps
+  ## working). It cannot be mixed with named systems - that request is
+  ## contradictory and silently resolving it either way would be a guess.
+  if (!is.null(systems) && is.character(systems) &&
+      any(tolower(systems) == "all")) {
+    if (length(systems) > 1L)
+      stop("`systems = \"all\"` cannot be combined with named systems; ",
+           "you supplied: ", paste(systems, collapse = ", "),
+           ". Use systems = \"all\" alone, or name the systems you want.",
+           call. = FALSE)
+    systems <- NULL
+  }
   ## dmsa_import() hands the frame both halves in one object: unwrap it so
   ## `dmsa_frame(dmsa_import(x, ...), outcome = ...)` is the whole bridge
   ## from any preprocessing pipeline to the analysis.
@@ -526,6 +896,11 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   if (nzchar(mod2) && !nzchar(mod))
     stop("`mod2` was set without `mod`; set `mod` first", call. = FALSE)
   if (!isTRUE(moderation) && (nzchar(mod) || nzchar(mod2))) {
+    ## say it LIVE, not only in the corrections table: a user who typed
+    ## mod = "sex" meant to test a moderation and would otherwise discover
+    ## pages later that none was run (PI, 2026-08-29)
+    message("dmsa_frame(): `mod = ` was given but moderation = FALSE - no ",
+            "moderation is tested. Set moderation = TRUE to test it.")
     cor <- .frame_note(cor, "moderation",
                        "mod/mod2 given but moderation = FALSE",
                        "moderators ignored; set moderation = TRUE to test them")
@@ -533,19 +908,6 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   for (mv in c(mod, mod2)) if (nzchar(mv) && !mv %in% names(data))
     stop("moderator column '", mv, "' is not in `data`", call. = FALSE)
 
-  ## A nominal outcome cannot enter the main path. DMSA regresses methylation ON
-  ## the outcome and tests ONE coefficient, so a k-level nominal variable coerced
-  ## to numeric is silently analysed as an ordered score - "mode 5 is five times
-  ## mode 1". That is not a defensible model and it must not run.
-  if (outcome_type == "multinomial")
-    stop("outcome_type = 'multinomial' is not supported by dmsa_frame(): the ",
-         "main path regresses methylation ON the outcome and tests a single ",
-         "1-df coefficient, so a nominal outcome would be coerced to a numeric ",
-         "score and analysed as if its levels were equally spaced and ordered. ",
-         "Use dmsa_outcome(), which implements a rank-based scheme for ",
-         "multinomial and ordinal outcomes, or recode to a binary contrast ",
-         "(e.g. one level vs the rest) and pass it as a two-level outcome.",
-         call. = FALSE)
 
   ## ---- display labels -----------------------------------------------------
   ## Column names are the user's own and often unreadable in a figure
@@ -572,48 +934,351 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   }
 
   ## ---- outcomes -----------------------------------------------------------
-  if (missing(outcome) || !length(outcome))
-    stop("`outcome` must name at least one column", call. = FALSE)
   miss <- setdiff(outcome, names(data))
   if (length(miss))
     stop("outcome column(s) not in `data`: ", paste(miss, collapse = ", "),
          call. = FALSE)
 
+  ## ---- spec 50: THE OUTCOME FAMILY IS PER OUTCOME, NOT PER FRAME ----------
+  ## `outcome` is a vector, `outcome_type` was a single scalar, and the binary
+  ## autofix below overwrote that scalar. So analysing
+  ##   outcome = c("epds_total", "depressed")
+  ## let the second, two-level outcome flip the family for the FIRST one, and
+  ## the frame then reported a continuous score as logistic - with the switch
+  ## recorded against the wrong column. A family belongs to an outcome.
+  outcome_type <- .frame_otypes(if (missing(outcome_type)) "gaussian"
+                                else outcome_type, outcome)
+
+  ## ---- spec 51: THE MODEL ORIENTATION IS DECLARED AND CONSISTENT ---------
+  ## Three models can be fitted from one frame, and they do not all face the
+  ## same way:
+  ##   main DMSA path   methylation ~ outcome + covariates   (always)
+  ##   shape scan       outcome     ~ tone score + covariates
+  ##   moderation       whichever `frame_role` declares
+  ## The main path's direction is the DEFINITION of the DMSA estimand - a
+  ## directional set statistic on methylation - so `frame_role` neither does
+  ## nor can turn it around, and documenting it as "outcome ~ frame" was simply
+  ## wrong. What `frame_role` governs is the secondary models. Until now only
+  ## moderation read it: `frame_role = "outcome"` flipped the moderated model
+  ## to `tone ~ outcome x moderator` while the shape scan accompanying it in
+  ## the same report stayed `outcome ~ tone` - two answers to two different
+  ## questions, printed side by side as though they agreed.
+  .orient <- list(
+    main = paste0("methylation ~ ", paste(outcome, collapse = " + "),
+                  " + covariates"),
+    shape = if (identical(type, "linear")) NA_character_
+            else paste0(paste(outcome, collapse = " + "),
+                        " ~ tone score + covariates"),
+    moderation = if (!isTRUE(moderation)) NA_character_
+                 else if (identical(frame_role, "outcome"))
+                   paste0("tone score ~ ", paste(outcome, collapse = " + "),
+                          " x moderator + covariates")
+                 else paste0(paste(outcome, collapse = " + "),
+                             " ~ tone score x moderator + covariates"))
+  if (identical(frame_role, "outcome") && !identical(type, "linear"))
+    stop("frame_role = \"outcome\" cannot be honoured together with type = \"",
+         type, "\".\nThe shape scan that `type` switches on fits\n  ",
+         .orient$shape, "\nwhich is the opposite orientation to the one ",
+         "frame_role = \"outcome\" declares, and it is not switchable: the ",
+         "curvature arms (Sasabuchi, Fieller) are defined on the outcome as ",
+         "the response.\nSo the report would carry a moderated model facing ",
+         "one way and a shape scan facing the other.\nEither declare ",
+         "frame_role = \"predictor\", or keep frame_role = \"outcome\" and set ",
+         "type = \"linear\".\nNo analysis was run.", call. = FALSE)
+  if (identical(frame_role, "outcome") && !isTRUE(moderation))
+    cor <- .frame_note(cor, "frame_role", "declared \"outcome\"",
+                       paste0("no effect on this frame: only the moderated ",
+                              "model reads it, and moderation = FALSE. The ",
+                              "main path is ", .orient$main,
+                              " either way - that is the DMSA estimand."))
+
+  ## A nominal outcome cannot enter the main path. DMSA regresses methylation ON
+  ## the outcome and tests ONE coefficient, so a k-level nominal variable coerced
+  ## to numeric is silently analysed as an ordered score - "mode 5 is five times
+  ## mode 1". That is not a defensible model and it must not run.
+  if (any(outcome_type == "multinomial")) {
+    .mn <- names(outcome_type)[outcome_type == "multinomial"]
+    stop("outcome_type = 'multinomial' (outcome ",
+         paste(.mn, collapse = ", "),
+         ") is not supported by dmsa_frame(): the ",
+         "main path regresses methylation ON the outcome and tests a single ",
+         "1-df coefficient, so a nominal outcome would be coerced to a numeric ",
+         "score and analysed as if its levels were equally spaced and ordered. ",
+         "Use dmsa_outcome(), which implements a rank-based scheme for ",
+         "multinomial and ordinal outcomes, or recode to a binary contrast ",
+         "(e.g. one level vs the rest) and pass it as a two-level outcome.",
+         call. = FALSE)
+  }
+
+  ## ---- spec 46: SAMPLE ALIGNMENT ------------------------------------------
+  ## A methylation matrix and a phenotype table are two separate objects. If
+  ## their rows are not the same samples in the same order, every coefficient
+  ## in the report is computed from mismatched people - and nothing about the
+  ## output looks wrong. Positional equality is therefore never ASSUMED when
+  ## identifiers exist to check it against.
+  if (is.matrix(methylation)) {
+    if (nrow(methylation) != nrow(data))
+      stop("methylation has ", nrow(methylation), " row(s) but `data` has ",
+           nrow(data), ". They must describe the same samples.\n",
+           "No analysis was run.", call. = FALSE)
+    rn <- rownames(methylation)
+    idcol <- sample_id
+    if (sample_align == "id") {
+      ## auto-detect only when the user did not name a column, and say so
+      if (is.null(idcol) && !is.null(rn)) {
+        ## numeric id columns (1001, 1002, ...) are as common as character
+        ## ones; compare everything as character so they can be detected too
+        cand <- names(data)[vapply(data, function(v)
+          is.character(v) || is.factor(v) ||
+            (is.numeric(v) && !anyNA(v)), TRUE)]
+        hit <- cand[vapply(cand, function(v)
+          setequal(as.character(data[[v]]), rn), TRUE)]
+        if (length(hit) == 1L) {
+          idcol <- hit
+          message("dmsa_frame(): matching methylation rows by `", idcol,
+                  "` (auto-detected from rownames). Pass sample_id = to be ",
+                  "explicit.")
+        }
+      }
+      if (!is.null(idcol)) {
+        if (!idcol %in% names(data))
+          stop("`sample_id` names a column that is not in `data`: ", idcol,
+               call. = FALSE)
+        if (is.null(rn))
+          stop("`sample_id` was supplied but the methylation matrix has no ",
+               "rownames to match against.\nEither add sample identifiers as ",
+               "rownames, or set sample_align = \"positional\" if the rows are ",
+               "known to be in the same order.\nNo analysis was run.",
+               call. = FALSE)
+        ids <- as.character(data[[idcol]])
+        if (anyDuplicated(ids))
+          stop("`", idcol, "` has duplicated identifier(s) (e.g. ",
+               paste(utils::head(unique(ids[duplicated(ids)]), 3),
+                     collapse = ", "), "); rows cannot be matched ",
+               "unambiguously.\nNo analysis was run.", call. = FALSE)
+        if (anyDuplicated(rn))
+          stop("the methylation matrix has duplicated rownames (e.g. ",
+               paste(utils::head(unique(rn[duplicated(rn)]), 3),
+                     collapse = ", "), "); rows cannot be matched ",
+               "unambiguously.\nNo analysis was run.", call. = FALSE)
+        miss_d <- setdiff(ids, rn); miss_m <- setdiff(rn, ids)
+        if (length(miss_d) || length(miss_m))
+          stop("sample identifiers do not match between `data` and the ",
+               "methylation matrix.\n",
+               length(miss_d), " in data but not in methylation",
+               if (length(miss_d)) paste0(" (e.g. ",
+                 paste(utils::head(miss_d, 5), collapse = ", "), ")") else "",
+               "\n", length(miss_m), " in methylation but not in data",
+               if (length(miss_m)) paste0(" (e.g. ",
+                 paste(utils::head(miss_m, 5), collapse = ", "), ")") else "",
+               "\nNo analysis was run.", call. = FALSE)
+        ord <- match(ids, rn)
+        if (!identical(ord, seq_along(ord))) {
+          methylation <- methylation[ord, , drop = FALSE]
+          cor <- .frame_note(cor, idcol, "methylation rows in a different order",
+                             "reordered to match `data` by sample identifier")
+        }
+      } else if (!is.null(rn)) {
+        ## the METHYLATION side carries identifiers but no unique matching
+        ## column was found in `data`. Recording "no identifiers on either
+        ## side" here would be false, and positional alignment against a
+        ## matrix that HAS rownames is exactly the unverifiable state spec 46
+        ## exists to prevent - so this stops rather than proceeding.
+        stop("the methylation matrix has rownames, but no column of `data` ",
+             "matches them",
+             if (length(hit) > 1L) paste0(" uniquely (", length(hit),
+               " columns match: ", paste(utils::head(hit, 3), collapse = ", "),
+               ")") else "",
+             ".\nRows cannot be verified to describe the same samples in ",
+             "the same order.\nName the identifier column with sample_id =, ",
+             "or declare sample_align = \"positional\" if the order is known ",
+             "to be right.\nNo analysis was run.", call. = FALSE)
+      } else {
+        ## no identifiers on either side: shuffling cannot be detected, so
+        ## positional is the only possible behaviour. It is allowed, but it is
+        ## recorded rather than assumed silently.
+        cor <- .frame_note(cor, "sample alignment",
+                           "no sample identifiers on either side",
+                           paste("rows aligned POSITIONALLY and unverified;",
+                                 "supply sample_id = and matrix rownames to",
+                                 "have this checked"))
+      }
+    } else {
+      cor <- .frame_note(cor, "sample alignment", "sample_align = positional",
+                         "rows aligned by position at the user's request")
+    }
+  }
+
   ## ---- maps and coverage --------------------------------------------------
-  maps <- .frame_maps(map)
-  cs   <- .frame_sets(sets)
+  ## Spec 1/3: WHERE direction comes from is now explicit. "cpgdirection"
+  ## builds the map from CpG x gene PAIRS (cpgdirection::cpg_gene_pairs),
+  ## the biological reference supplying membership; "bundled" is the interim
+  ## per-column Alpha snapshot; "auto" (default) uses cpgdirection when it is
+  ## installed and otherwise falls back to the snapshot WITH A RECORDED NOTE.
+  ## A user-supplied `map` table is a bundled-style map and forces "bundled".
+  cs <- .frame_sets(sets)
+  .src <- direction_source
+  if (is.data.frame(map) && .src != "bundled") {
+    if (.src == "cpgdirection")
+      stop("`map` was supplied as a table AND direction_source = ",
+           "\"cpgdirection\" was requested. A user map is a bundled-style ",
+           "per-column snapshot; pick one source.", call. = FALSE)
+    .src <- "bundled"
+  }
+  if (.src == "auto")
+    .src <- if (!is.null(.cpgd("cpg_gene_pairs"))) "cpgdirection" else "bundled"
+  if (.src == "cpgdirection" && is.null(.cpgd("cpg_gene_pairs")) &&
+      is.null(getOption("dmsa.pair_table", NULL)))
+    stop("direction_source = \"cpgdirection\" but the cpgdirection package ",
+         "(with cpg_gene_pairs) is not installed.\n",
+         "BiocManager::install(\"teindor/cpgdirection\") installs the full ",
+         "build; direction_source = \"bundled\" uses the interim snapshot.",
+         call. = FALSE)
+  if (direction_source == "auto" && .src == "bundled" &&
+      !is.data.frame(map))
+    cor <- .frame_note(cor, "direction source",
+                       "cpgdirection is not installed",
+                       paste("falling back to the bundled per-column Alpha",
+                             "snapshot; install cpgdirection for pair-level",
+                             "direction resolution"))
+
+  pair_rt <- NULL
+  if (.src == "cpgdirection") {
+    ## the biological reference (spec 3): membership is system > module > gene
+    .ref <- if (inherits(reference, "dmsa_reference")) reference
+            else if (identical(reference, "alpha")) alpha_reference()
+            else stop("`reference` must be \"alpha\" or a dmsa_reference ",
+                      "object (see dmsa_reference(), dmsa_reference_csv())",
+                      call. = FALSE)
+    .avail0 <- if (is.matrix(methylation)) colnames(methylation)
+               else if (is.character(methylation) && length(methylation) >= 1)
+                 intersect(names(data), methylation)
+               else names(data)
+    if (!is.null(cpgs_include) || !is.null(cpgs_exclude)) {
+      .sites0 <- .avail0[.map_is_site(.avail0)]
+      .keep0 <- .cpg_name_filter(.sites0, cpgs_include, cpgs_exclude)
+      if (!length(.keep0))
+        stop("cpgs_include/cpgs_exclude removed every CpG-site column (",
+             length(.sites0), " candidate(s)). Check the patterns - they are ",
+             "matched as fixed substrings of the column names.",
+             call. = FALSE)
+      cor <- .frame_note(cor, "cpg selection",
+                         sprintf("include: %s | exclude: %s",
+                                 if (is.null(cpgs_include)) "-" else
+                                   paste(cpgs_include, collapse = ", "),
+                                 if (is.null(cpgs_exclude)) "-" else
+                                   paste(cpgs_exclude, collapse = ", ")),
+                         sprintf("%d of %d CpG column(s) kept",
+                                 length(.keep0), length(.sites0)))
+      .avail0 <- c(setdiff(.avail0, .sites0), .keep0)
+    }
+    pair_rt <- .frame_pairs_runtime(.avail0, .ref, tissue = tissue,
+                                    replicate_policy = replicate_policy,
+                                    pairs = getOption("dmsa.pair_table", NULL))
+    maps <- pair_rt[c("full", "confidence")]
+    ## rule 4 (integration brief): what probe QC excluded and what simply has
+    ## no mapping is RECONCILED here, not left for the user to discover as a
+    ## count mismatch. Both lists live on the ledger's attributes in full.
+    ## the probe-QC note is deferred until AFTER the `systems =` subset: a
+    ## file-wide exclusion count printed beside a two-system frame reads as
+    ## the frame's own loss (PI, 2026-08-29). See the scoped note below.
+    .orf <- attr(pair_rt$ledger, "cpgs_outside_reference")
+    if (length(.orf))
+      cor <- .frame_note(cor, "outside reference",
+                         sprintf(paste0("%d CpG(s) map only to genes outside ",
+                                        "the biological reference"),
+                                 length(.orf)),
+                         paste0("mapped fine, just not to the biology asked ",
+                                "about (e.g. ",
+                                paste(utils::head(.orf, 5), collapse = ", "),
+                                "); not analysed"))
+    .unm <- attr(pair_rt$ledger, "unmapped_cpgs")
+    if (length(.unm))
+      cor <- .frame_note(cor, "unmapped CpGs",
+                         sprintf("%d CpG(s) map to no supported target",
+                                 length(.unm)),
+                         paste0("no CpG x gene pair exists for them (e.g. ",
+                                paste(utils::head(.unm, 5), collapse = ", "),
+                                "); they are not analysed and not errors"))
+    cor <- .frame_note(cor, "direction source", "cpgdirection pairs",
+                       sprintf(paste0("%d usable pair(s) from %d CpG(s) x %d ",
+                                      "gene(s); tissue %s; ledger kept on ",
+                                      "the frame"),
+                               nrow(pair_rt$full),
+                               length(unique(pair_rt$full$probe)),
+                               length(unique(pair_rt$full$gene)), tissue))
+  } else {
+    maps <- .frame_maps(map)
+  }
 
   ## translate the map's column names to whichever build this data frame is,
   ## BEFORE the intersection that decides whether any probe was found at all
+  ## spec 47: a character `methylation` selects columns however MANY it names.
+  ## The old guard was length > 1, so methylation = "cg12345678" fell through
+  ## to "use every column of `data`" - a single-probe request silently became
+  ## a whole-panel analysis. Any non-NULL character selection is honoured.
   .avail <- if (is.matrix(methylation)) colnames(methylation)
-            else if (is.character(methylation) && length(methylation) > 1)
+            else if (is.character(methylation) && length(methylation) >= 1)
               intersect(names(data), methylation)
             else names(data)
-  .res <- .frame_resolve_columns(maps[[cpg_map]], .avail, cs,
-            if (is.character(methylation) && length(methylation) > 1) NULL
-            else .frame_which_build(names(data)))
-  if (!is.null(.res$note)) {
-    for (.k in names(maps))
-      maps[[.k]]$column <- .frame_resolve_columns(maps[[.k]], .avail, cs,
-        if (is.character(methylation) && length(methylation) > 1) NULL
-        else .frame_which_build(names(data)))$column
-    cor <- .frame_note(cor, "column names", "build-specific CpG naming",
-                       .res$note)
+  if (is.null(pair_rt)) {
+    ## bundled snapshot: build-specific column-name translation applies
+    .res <- .frame_resolve_columns(maps[[cpg_map]], .avail, cs,
+              if (is.character(methylation) && length(methylation) >= 1) NULL
+              else .frame_which_build(names(data)))
+    if (!is.null(.res$note)) {
+      for (.k in names(maps))
+        maps[[.k]]$column <- .frame_resolve_columns(maps[[.k]], .avail, cs,
+          if (is.character(methylation) && length(methylation) >= 1) NULL
+          else .frame_which_build(names(data)))$column
+      cor <- .frame_note(cor, "column names", "build-specific CpG naming",
+                         .res$note)
+    }
   }
+  ## pair path: the map was BUILT from the available columns, so no
+  ## translation and no membership filter is needed - the columns are the
+  ## user's own measurement names (or, under collapse_site, the canonical
+  ## CpG ids whose replicate columns are averaged below).
 
   chosen_map <- maps[[cpg_map]]
-  in_data <- chosen_map$column %in% names(data)
-  if (is.character(methylation) && length(methylation) > 1)
-    in_data <- in_data & chosen_map$column %in% methylation
-  if (is.matrix(methylation)) {
-    keyed <- chosen_map$column %in% colnames(methylation) |
-             chosen_map$probe  %in% colnames(methylation)
-    in_data <- keyed
+  if (is.null(pair_rt)) {
+    in_data <- chosen_map$column %in% names(data)
+    if (is.character(methylation) && length(methylation) >= 1)
+      in_data <- in_data & chosen_map$column %in% methylation
+    if (is.matrix(methylation)) {
+      keyed <- chosen_map$column %in% colnames(methylation) |
+               chosen_map$probe  %in% colnames(methylation)
+      in_data <- keyed
+    }
+    mp <- chosen_map[in_data, , drop = FALSE]
+  } else mp <- chosen_map
+  if (is.null(pair_rt) &&
+      (!is.null(cpgs_include) || !is.null(cpgs_exclude))) {
+    ## bundled path: the same name filter, applied to the mapped columns
+    ## AFTER build translation, so the patterns match the names actually
+    ## being analysed
+    .keepb <- .cpg_name_filter(mp$column, cpgs_include, cpgs_exclude)
+    .nb <- nrow(mp)
+    mp <- mp[mp$column %in% .keepb, , drop = FALSE]
+    cor <- .frame_note(cor, "cpg selection",
+                       sprintf("include: %s | exclude: %s",
+                               if (is.null(cpgs_include)) "-" else
+                                 paste(cpgs_include, collapse = ", "),
+                               if (is.null(cpgs_exclude)) "-" else
+                                 paste(cpgs_exclude, collapse = ", ")),
+                       sprintf("%d of %d mapped column(s) kept", nrow(mp), .nb))
   }
-  mp <- chosen_map[in_data, , drop = FALSE]
   if (!nrow(mp))
     stop("no mapped methylation columns found (cpg_map = '", cpg_map,
-         "'); check `methylation`/`data` column names against the map",
+         "'); ",
+         if (!is.null(cpgs_include) || !is.null(cpgs_exclude))
+           "the cpgs_include/cpgs_exclude patterns removed every mapped column - check them first. Otherwise "
+         else "",
+         if (is.null(pair_rt))
+           "check `methylation`/`data` column names against the map"
+         else paste0("no usable pair rests on tier M or S1 evidence here. ",
+                     "cpg_map = 'full' analyses every usable pair; the pair ",
+                     "ledger says what each pair's direction rests on."),
          call. = FALSE)
   ## (untestable-gene tracking happens AFTER the systems subset below - a
   ## 1.1.0 bug counted untestable genes across ALL systems in the data)
@@ -630,6 +1295,54 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   }
   mp <- mp[order(mp$system_id, mp$gene, mp$probe), , drop = FALSE]
 
+  ## probe-QC accounting, SCOPED TO THE FRAME (PI ruling, 2026-08-29): the
+  ## headline number is how many excluded CpGs would have mapped into the
+  ## systems actually analysed; the whole-file count rides along as context.
+  ## The mapping of the excluded CpGs comes from one extra flag-mode call
+  ## over just those CpGs (see .frame_cpg_gene_pairs); when it is not
+  ## available (injected pair tables, or the call failed) the note falls
+  ## back to the file-wide count WITH its scope stated, never implied.
+  if (!is.null(pair_rt)) {
+    .qcx <- attr(pair_rt$ledger, "qc_excluded_cpgs")
+    if (length(.qcx)) {
+      .qcp <- attr(pair_rt$ledger, "qc_excluded_pairs")
+      .act <- paste0("probe QC mask: cross-hybridizing/degenerate mapping/",
+                     "SNP-contaminated; probe_qc = \"flag\" in cpgdirection ",
+                     "recovers them marked")
+      if (!is.null(.qcp) && nrow(.qcp)) {
+        ## the scope: with an explicit `systems =`, the selected systems'
+        ## reference genes (even genes with no surviving probe - the excluded
+        ## CpG could have been that probe); with no selection, the whole
+        ## reference, because everything in it is being analysed
+        .selg <- if (is.null(systems)) unique(.ref$systems$gene) else
+          unique(.ref$systems$gene[
+            .ref$systems$system_id %in% sys_tab$system_id |
+            .ref$systems$system %in% sys_tab$system])
+        .inx <- unique(.qcp$cpg_id[.qcp$target_gene %in% .selg])
+        .iss <- sprintf(paste0("%d CpG(s) mapping into the analysed ",
+                               "system(s) excluded as unreliable probes"),
+                        length(.inx))
+        if (length(.inx))
+          .act <- paste0(.act, " (e.g. ",
+                         paste(utils::head(.inx, 5), collapse = ", "), ")")
+        .act <- sprintf("%s; %d excluded across the whole submitted file",
+                        .act, length(.qcx))
+        message("dmsa_frame(): ", .iss, " (", length(.qcx),
+                " across the whole file). probe_qc = \"flag\" keeps them, ",
+                "marked.")
+      } else {
+        .iss <- sprintf(paste0("%d CpG(s) excluded as unreliable probes ",
+                               "across the whole submitted file (their ",
+                               "mapping is unknown, so this count is NOT ",
+                               "scoped to the analysed systems)"),
+                        length(.qcx))
+        .act <- paste0(.act, " (e.g. ",
+                       paste(utils::head(.qcx, 5), collapse = ", "), ")")
+      }
+      cor <- .frame_note(cor, "probe QC", .iss, .act)
+    }
+  }
+
   ## genes present in the raw map for the CHOSEN systems but with ZERO probes
   ## surviving the chosen direction bar are UNTESTABLE - tracked, reported,
   ## never silently dropped
@@ -640,20 +1353,33 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   ## reports claimed "Coverage: 0 gene(s) ... untestable" while the parent build
   ## on the SAME two systems and the SAME 18 genes correctly reported 36.
   ## Translate raw the same way before the intersection.
-  raw <- .frame_read_map(map)
-  raw$column <- .frame_resolve_columns(
-    raw, .avail, cs,
-    if (is.character(methylation) && length(methylation) > 1) NULL
-    else .frame_which_build(names(data)))$column
-  raw_in <- if (is.matrix(methylation))
-              raw$column %in% colnames(methylation) |
-              raw$probe  %in% colnames(methylation)
-            else if (is.character(methylation) && length(methylation) > 1)
-              raw$column %in% names(data) & raw$column %in% methylation
-            else raw$column %in% names(data)
-  raw <- raw[raw$system_id %in% sys_tab$system_id & raw_in, , drop = FALSE]
-  ut <- setdiff(unique(raw$gene), unique(mp$gene))
-  untestable <- unique(raw[raw$gene %in% ut, c("system_id", "system", "gene")])
+  if (is.null(pair_rt)) {
+    raw <- .frame_read_map(map)
+    raw$column <- .frame_resolve_columns(
+      raw, .avail, cs,
+      if (is.character(methylation) && length(methylation) >= 1) NULL
+      else .frame_which_build(names(data)))$column
+    raw_in <- if (is.matrix(methylation))
+                raw$column %in% colnames(methylation) |
+                raw$probe  %in% colnames(methylation)
+              else if (is.character(methylation) && length(methylation) >= 1)
+                raw$column %in% names(data) & raw$column %in% methylation
+              else raw$column %in% names(data)
+    raw <- raw[raw$system_id %in% sys_tab$system_id & raw_in, , drop = FALSE]
+    ut <- setdiff(unique(raw$gene), unique(mp$gene))
+    untestable <- unique(raw[raw$gene %in% ut, c("system_id", "system", "gene")])
+  } else {
+    ## spec 15: on the pair path the REFERENCE defines membership, so an
+    ## untestable gene is a reference gene of a chosen system with no usable
+    ## pair here - whether unmeasured, abstained, or QC-excluded. The ledger
+    ## carries the pair-by-pair reason; this table is the per-gene summary.
+    .rs <- if (inherits(.ref, "dmsa_reference")) .ref$systems else .ref
+    .rs <- .rs[as.character(.rs$system_id) %in%
+                 as.character(sys_tab$system_id), , drop = FALSE]
+    ut <- setdiff(unique(.rs$gene), unique(mp$gene))
+    untestable <- unique(.rs[.rs$gene %in% ut,
+                             c("system_id", "system", "gene"), drop = FALSE])
+  }
 
   ## modules requested -> module map must cover the chosen systems
   mods <- NULL
@@ -718,6 +1444,94 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   ## spends 60 df on a nuisance factor that ctrlSV3/ctrlSV5 already partly
   ## absorb. Whether to pay that is a judgement the analyst has to be able to
   ## make and report, so chip = FALSE has to be sayable.
+  ## ---- random_effects: mixed-model-style routing (PI, 2026-08-29) ---------
+  ## Users state their random effects the way they think about them - as
+  ## grouping factors, lme4-style. With TWO factors, dmsa_frame() works out
+  ## the structure itself and routes each factor to the machinery that
+  ## implements it in a permutation engine:
+  ##   the FINEST dependence factor  -> the exchangeability blocks (rows that
+  ##                                    must travel together under permutation)
+  ##   the other (batch-like) factor -> the (1 | .) random intercept, i.e. the
+  ##                                    chip machinery (REML quasi-demeaning)
+  ## The decision is announced in lme4 notation. Crossing the factors into one
+  ## block interaction - the old reading - made every group a singleton
+  ## whenever partners sat on different chips, and stopped the run.
+  random_effects <- unique(as.character(
+    random_effects[!is.na(random_effects) & nzchar(random_effects)]))
+  if (length(random_effects) > 2L)
+    stop("random_effects lists ", length(random_effects), " grouping ",
+         "factors. dmsa supports two: one exchangeability block (the rows ",
+         "that stay together under permutation) and one (1 | .) random ",
+         "intercept. Fold or drop the rest.", call. = FALSE)
+  if (length(random_effects) == 2L && all(random_effects %in% names(data))) {
+    .f1n <- random_effects[1]; .f2n <- random_effects[2]
+    .f1 <- factor(data[[.f1n]]); .f2 <- factor(data[[.f2n]])
+    .n12 <- all(rowSums(table(.f1, .f2) > 0) == 1L)   # f1 nested in f2
+    .n21 <- all(rowSums(table(.f2, .f1) > 0) == 1L)   # f2 nested in f1
+    if (.n12 && .n21) {
+      ## the two columns induce the SAME grouping: keeping both is harmless
+      ## (their interaction IS that grouping), so only say so
+      cor <- .frame_note(cor, "random_effects",
+                         sprintf("`%s` and `%s` are aliased (identical grouping)",
+                                 .f1n, .f2n),
+                         "one grouping, stated twice - treated as one block")
+    } else if (.n12 || .n21) {
+      ## NESTED, e.g. (1 | chip/cID) with couples on the SAME chip, or the
+      ## before/after contract's (ID within cID). The interaction of nested
+      ## factors IS the fine factor, so the existing blocks already carry the
+      ## dependence exactly - nothing needs rerouting, and nothing changes.
+      ## The coarse factor's own (1 | .) intercept, when it is a chip, comes
+      ## through `chip =` (whose default auto-detects chip columns).
+      .fine <- if (.n12) .f1n else .f2n
+      .coarse <- setdiff(c(.f1n, .f2n), .fine)
+      cor <- .frame_note(cor, "random_effects",
+                         sprintf("(1 | %s/%s): %s nested in %s",
+                                 .coarse, .fine, .fine, .coarse),
+                         sprintf(paste0("blocks on the nested pair equal ",
+                           "blocks on `%s` alone - rows of one %s travel ",
+                           "together under permutation; a (1 | %s) variance ",
+                           "component is the `chip =` argument's job"),
+                           .fine, .fine, .coarse))
+    } else {
+      ## CROSSED/INDEPENDENT, e.g. partners of one couple on DIFFERENT
+      ## chips: their interaction is all singletons and can never permute,
+      ## so this case used to stop the run. Route instead: the finest
+      ## dependence factor is the exchangeability block, the other enters as
+      ## the (1 | .) random intercept through the chip machinery.
+      .fine <- if (nlevels(.f1) >= nlevels(.f2)) .f1n else .f2n
+      .coarse <- setdiff(c(.f1n, .f2n), .fine)
+      if (isTRUE(attr(covariates, "no_chip")))
+        stop("random_effects = c(\"", .f1n, "\", \"", .f2n, "\") are ",
+             "CROSSED, which needs `", .coarse, "` as a (1 | .) random ",
+             "intercept - but this build's contract forbids a chip/batch ",
+             "term. Use one exchangeability factor, or drop the contract.",
+             call. = FALSE)
+      if (is.character(chip) && length(chip) == 1L && nzchar(chip) &&
+          !identical(chip, .coarse) && !identical(chip, "pool"))
+        stop("random_effects = c(\"", .f1n, "\", \"", .f2n, "\") routes `",
+             .coarse, "` to the (1 | .) random intercept, but chip = \"",
+             chip, "\" already claims that slot. The engine fits ONE random ",
+             "intercept: drop one of the two.", call. = FALSE)
+      if (identical(chip_effect, "none"))
+        stop("random_effects lists `", .coarse, "` as a random effect, but ",
+             "chip_effect = \"none\" says to drop it. Pick one.",
+             call. = FALSE)
+      cor <- .frame_note(cor, "random_effects",
+                         sprintf("(1 | %s) + (1 | %s): crossed/independent",
+                                 .f1n, .f2n),
+                         sprintf(paste0("`%s` (finest dependence) is the ",
+                           "exchangeability block - its rows travel together ",
+                           "under permutation; `%s` enters as the (1 | %s) ",
+                           "random intercept (REML quasi-demeaning). Crossing ",
+                           "them into one block would make every group a ",
+                           "singleton."),
+                           .fine, .coarse, .coarse))
+      chip <- .coarse
+      if (!identical(chip_effect, "fixed")) chip_effect <- "random"
+      random_effects <- .fine
+    }
+  }
+
   chip_req <- chip
   chip <- NULL
   if (isTRUE(attr(covariates, "no_chip"))) {
@@ -834,16 +1648,83 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
                                 "from ", paste(outcome, collapse = "/"),
                                 " cannot adjust a model that tests it"))
     }
+    ## a column given BOTH as a covariate and as a moderator (PI, 2026-08-29:
+    ## "sex" in covariates AND mod = "sex") would enter the moderated model
+    ## twice - once raw, once as the scaled moderator - a perfect
+    ## collinearity the fit would resolve silently. Say it out loud, drop
+    ## the covariate copy, and tell the user how to undo it.
+    .dup_mod <- intersect(covariates, Filter(nzchar, c(mod, mod2)))
+    if (length(.dup_mod) && isTRUE(moderation)) {
+      covariates <- setdiff(covariates, .dup_mod)
+      message("dmsa_frame(): ", paste0("'", .dup_mod, "'", collapse = ", "),
+              " was given both as a covariate and as a moderator. It is ",
+              "dropped from the covariates - the moderated model already ",
+              "carries its main effect. If that was not intended, re-run ",
+              "dmsa_frame() with the intended setting.")
+      cor <- .frame_note(cor, paste(.dup_mod, collapse = ","),
+                         "given as covariate AND moderator",
+                         paste0("dropped from the covariates; the moderated ",
+                                "model carries its main effect once"))
+    } else if (length(.dup_mod)) {
+      ## mod named but moderation = FALSE: the moderator is IGNORED (a note
+      ## already records that), so the covariate copy is the one that runs -
+      ## still worth a live line, because the user plainly meant to moderate
+      message("dmsa_frame(): '", paste(.dup_mod, collapse = "', '"),
+              "' is a covariate AND `mod = `, but moderation = FALSE, so ",
+              "no moderation is tested - it stays a plain covariate. Set ",
+              "moderation = TRUE to test the interaction.")
+    }
   }
 
   ## ---- TEST DRIVE 1: numeric coercion with per-column loss ---------------
+  ## spec 45: CATEGORICAL COVARIATES MUST STAY CATEGORICAL. Blanket
+  ## as.numeric(as.character(x)) had two failure modes, both silent:
+  ##   - levels like "control"/"treated" became all-NA, so every row dropped;
+  ##   - levels like "1"/"2"/"3" became 1,2,3 - a categorical adjusted as a
+  ##     CONTINUOUS variable with equal spacing, which is a wrong adjustment
+  ##     that no error ever announced.
+  ## A column is only coerced when every non-missing value genuinely parses as
+  ## a number (numbers stored as text). Otherwise it is kept as a factor and
+  ## model.matrix() builds the contrasts, which is what the fitting path
+  ## already expects. The outcome keeps the old treatment: its family is
+  ## declared through `outcome_type`, not inferred here.
+  catvars <- unique(c(covariates, c(mod, mod2)[nzchar(c(mod, mod2))]))
   numvars <- unique(c(outcome, covariates,
                       c(mod, mod2)[nzchar(c(mod, mod2))]))
   for (v in numvars) {
     old <- data[[v]]
     if (is.numeric(old)) next
+    ## A logical column is already a two-level numeric in disguise; sending it
+    ## through as.numeric(as.character(x)) turns "TRUE" into NA and deletes
+    ## every row. TRUE -> 1, FALSE -> 0 is the standard, lossless reading.
+    if (is.logical(old)) {
+      data[[v]] <- as.numeric(old)
+      cor <- .frame_note(cor, v, "logical column",
+                         "converted TRUE/FALSE to 1/0")
+      next
+    }
     new <- suppressWarnings(as.numeric(as.character(old)))
     lost <- sum(is.na(new) & !is.na(old))
+    ## An explicit factor/ordered column is a DECLARATION of categorical
+    ## intent: honour it even when the labels happen to look numeric
+    ## (levels "1","2","3" are site codes, not a continuous variable).
+    ## Only bare character columns are parse-tested.
+    if (v %in% catvars && (is.factor(old) || lost > 0)) {
+      f <- droplevels(as.factor(old))
+      nl <- nlevels(f)
+      if (nl < 2L)
+        stop("covariate '", v, "' is categorical with ", nl,
+             " usable level(s); it cannot adjust anything. ",
+             "Drop it from `covariates` or supply a variable that varies.",
+             call. = FALSE)
+      data[[v]] <- f
+      cor <- .frame_note(cor, v, "categorical",
+                         sprintf(paste0("kept as a factor with %d levels (%s); ",
+                                        "model.matrix() builds the contrasts"),
+                                 nl, paste(utils::head(levels(f), 4),
+                                           collapse = ", ")))
+      next
+    }
     if (!autofix && lost > 0)
       stop("column '", v, "' is non-numeric and coercion would lose ",
            lost, " values", call. = FALSE)
@@ -855,15 +1736,18 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   }
 
   ## complete cases over model variables + blocks + methylation columns
+  ## spec 43: a REQUESTED exchangeability block may never silently disappear.
+  ## Dropping it does not merely lose a covariate - it changes the NULL MODEL
+  ## from within-block to unrestricted permutation, so every p-value afterwards
+  ## answers a question the user did not ask. This is a hard error even under
+  ## autofix, which is allowed to repair nuisances, never the null.
   blockv <- intersect(random_effects, names(data))
   if (length(blockv) < length(random_effects)) {
     gone <- setdiff(random_effects, blockv)
-    if (!autofix)
-      stop("random_effects column(s) missing: ", paste(gone, collapse = ", "),
-           call. = FALSE)
-    cor <- .frame_note(cor, paste(gone, collapse = ","),
-                       "random-effects column absent",
-                       "dropped; permutation is unrestricted unless another block remains")
+    stop("requested exchangeability block column(s) not found in `data`: ",
+         paste(gone, collapse = ", "),
+         "\nContinuing without them would change the null model to ",
+         "unrestricted permutation.\nNo analysis was run.", call. = FALSE)
   }
   ## chip_random must be RETAINED even though it is not in the fixed design:
   ## it is the grouping vector for the random intercept. Dropping it here made
@@ -881,13 +1765,96 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   base <- data[cc, , drop = FALSE]
   if (nrow(base) < 30)
     stop("only ", nrow(base), " complete rows remain - too few", call. = FALSE)
+  ## spec 43 (second half): blocks that survive as singletons are not blocks.
+  ## An interaction such as cID x chip can leave every group of size 1, in which
+  ## case within-block permutation has nothing to permute and silently degenerates
+  ## to the identity - or, worse, to unrestricted permutation downstream.
+  if (length(blockv)) {
+    .bk <- interaction(base[, blockv, drop = FALSE], drop = TRUE)
+    .sz <- table(.bk)
+    if (all(.sz < 2L))
+    {
+      ## Say not only WHAT went wrong but WHICH column caused it: with several
+      ## block columns, crossing them is usually the mistake (e.g. couples on
+      ## DIFFERENT chips make cID x chip all-singleton), and one of the
+      ## columns alone typically permutes fine - while a chip/batch column
+      ## belongs in `chip =`, where it enters as a random intercept instead.
+      .hint <- ""
+      if (length(blockv) > 1L) {
+        .solo <- vapply(blockv, function(v)
+          sum(table(base[[v]]) >= 2L), integer(1))
+        .good <- names(.solo)[.solo >= 2L]
+        .batchy <- blockv[grepl("chip|slide|plate|batch|array", blockv,
+                                ignore.case = TRUE)]
+        .hint <- paste0(
+          if (length(.good))
+            paste0("\nNote: ", paste(sprintf("`%s` alone gives %d permutable group(s)",
+                   .good, .solo[.good]), collapse = "; "),
+                   " - crossing the columns is what created the singletons.")
+          else "",
+          if (length(.batchy))
+            paste0("\n", paste0("`", .batchy, "`", collapse = " and "),
+                   " looks like a batch/chip variable: it belongs in ",
+                   "`chip = ` (random intercept), not in the ",
+                   "exchangeability block.")
+          else "")
+      }
+      stop("The requested exchangeability block has no permutable groups.\n",
+           "Block: ", paste(blockv, collapse = " x "), " -> ", length(.sz),
+           " group(s), all of size 1 on the ", nrow(base),
+           " analysable rows.\n",
+           "Continuing would change the null model to unrestricted permutation.",
+           .hint,
+           "\nNo analysis was run.", call. = FALSE)
+    }
+    if (sum(.sz >= 2L) < 2L)
+      cor <- .frame_note(cor, paste(blockv, collapse = " x "),
+                         sprintf("only %d block(s) of size >= 2", sum(.sz >= 2L)),
+                         "permutation is nearly degenerate - interpret with care")
+  }
   if (.nz(chip)) base[[chip]] <- droplevels(factor(base[[chip]]))
   for (v in covariates) if (is.factor(base[[v]]))
     base[[v]] <- droplevels(base[[v]])
 
   ## methylation matrix on the complete-case rows
-  if (is.matrix(methylation)) {
-    key <- if (all(mp$column %in% colnames(methylation))) mp$column else mp$probe
+  if (!is.null(pair_rt)) {
+    ## PAIR PATH. mp has one row per usable CpG x gene pair, several of which
+    ## can share one physical measurement (co-effects) - and, under
+    ## collapse_site, one measurement can average several replicate probe
+    ## designs of the same CpG (spec 20). Build one column per MEASUREMENT
+    ## first, then expand to one column per PAIR ROW, so everything
+    ## downstream (missing-value policy, M-values, the per-system sets) works
+    ## index-parallel with mp exactly as it always has.
+    mm <- pair_rt$measurements
+    mm <- mm[mm$measurement_id %in% mp$column, , drop = FALSE]
+    src <- if (is.matrix(methylation)) methylation[cc, , drop = FALSE]
+           else as.matrix(base[, intersect(unique(unlist(mm$replicates)),
+                                           names(base)), drop = FALSE])
+    mode(src) <- "numeric"
+    BEm <- vapply(seq_len(nrow(mm)), function(i) {
+      ph <- intersect(mm$replicates[[i]], colnames(src))
+      if (!length(ph)) return(rep(NA_real_, nrow(src)))
+      if (length(ph) == 1L) src[, ph]
+      ## replicate designs of ONE CpG average on the beta scale; na.rm stays
+      ## FALSE so a missing replicate keeps the site visible to the declared
+      ## missing_methylation policy instead of quietly narrowing its basis
+      else rowMeans(src[, ph, drop = FALSE], na.rm = FALSE)
+    }, numeric(nrow(src)))
+    colnames(BEm) <- mm$measurement_id
+    .navg <- sum(vapply(mm$replicates, length, 1L) > 1L)
+    if (.navg > 0)
+      cor <- .frame_note(cor, "replicates",
+                         sprintf("%d CpG(s) measured by several probe designs",
+                                 .navg),
+                         "replicate designs averaged into one measurement per site (replicate_policy = collapse_site)")
+    BE <- BEm[, mp$column, drop = FALSE]
+    colnames(BE) <- mp$column
+  } else if (is.matrix(methylation)) {
+    ## the map-matching step accepts each probe by its column name OR its bare
+    ## probe id, per row - so the extraction key must be chosen per row too. An
+    ## all-or-nothing key silently produced all-NA columns for whichever naming
+    ## convention was in the minority in a mixed matrix.
+    key <- ifelse(mp$column %in% colnames(methylation), mp$column, mp$probe)
     BE <- methylation[cc, match(key, colnames(methylation)), drop = FALSE]
     ## every downstream consumer (sets$columns, the reporters, the aligner)
     ## keys on the map's `column` names. A matrix keyed by bare probe ids was
@@ -896,12 +1863,76 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
     colnames(BE) <- mp$column
   } else BE <- as.matrix(base[, mp$column, drop = FALSE])
   mode(BE) <- "numeric"
-  okc <- apply(BE, 2, function(z) all(is.finite(z)))
-  if (any(!okc)) {
-    cor <- .frame_note(cor, "methylation",
-                       sprintf("%d probe column(s) with missing values",
-                               sum(!okc)), "dropped from the frame")
-    mp <- mp[okc, , drop = FALSE]; BE <- BE[, okc, drop = FALSE]
+  ## ---- spec 48: MISSING METHYLATION NEEDS A DECLARED POLICY ---------------
+  ## Downstream, a probe carrying any non-finite value is dropped from its set.
+  ## That is a defensible engine rule, but it must not be what happens by
+  ## DEFAULT and out of sight: one missing value in one sample deletes a whole
+  ## CpG, and a gene can lose all of its evidence without the reader being
+  ## asked. The decision is taken here, by the caller, and recorded.
+  .na_cell <- !is.finite(BE)
+  if (any(.na_cell)) {
+    .nna <- sum(.na_cell)
+    .np <- sum(colSums(.na_cell) > 0)
+    .nr <- sum(rowSums(.na_cell) > 0)
+    if (missing_methylation == "error")
+      stop("`methylation` carries ", .nna, " missing or non-finite value(s), ",
+           "affecting ", .np, " probe column(s) and ", .nr, " sample(s).\n",
+           "Left alone, every affected probe is dropped from its set, so a ",
+           "gene can lose all of its evidence without the report saying so.\n",
+           "Declare a policy:\n",
+           "  missing_methylation = \"drop_probes\"          ",
+           "drop the affected probes; the correction log records which.\n",
+           "  missing_methylation = \"common_complete_rows\"  ",
+           "keep the probes; analyse the samples complete across all of them.",
+           "\nNo analysis was run.", call. = FALSE)
+    if (missing_methylation == "drop_probes") {
+      okc <- colSums(.na_cell) == 0
+      .dropped <- mp$column[!okc]
+      cor <- .frame_note(cor, "methylation",
+                         sprintf("%d missing value(s) in %d probe column(s)",
+                                 .nna, .np),
+                         sprintf(paste0("missing_methylation = \"drop_probes\"",
+                                        ": %d probe(s) dropped (%s), %d kept"),
+                                 .np,
+                                 paste(utils::head(.dropped, 8), collapse = ", "),
+                                 sum(okc)))
+      mp <- mp[okc, , drop = FALSE]; BE <- BE[, okc, drop = FALSE]
+    } else {
+      keep_r <- rowSums(.na_cell) == 0
+      if (sum(keep_r) < 30)
+        stop("missing_methylation = \"common_complete_rows\" leaves only ",
+             sum(keep_r), " sample(s) complete across all ", ncol(BE),
+             " probe(s) - too few to analyse.\nUse missing_methylation = ",
+             "\"drop_probes\" to keep the samples and lose the ", .np,
+             " affected probe(s) instead.\nNo analysis was run.",
+             call. = FALSE)
+      BE <- BE[keep_r, , drop = FALSE]
+      base <- base[keep_r, , drop = FALSE]
+      ## the analysable row set just changed: factor levels and the
+      ## exchangeability blocks must be re-derived on it, not inherited.
+      if (.nz(chip)) base[[chip]] <- droplevels(factor(base[[chip]]))
+      for (v in covariates) if (is.factor(base[[v]]))
+        base[[v]] <- droplevels(base[[v]])
+      if (length(blockv)) {
+        .sz2 <- table(interaction(base[, blockv, drop = FALSE], drop = TRUE))
+        if (all(.sz2 < 2L))
+          stop("missing_methylation = \"common_complete_rows\" left the ",
+               "exchangeability block with no permutable groups.\n",
+               "Block: ", paste(blockv, collapse = " x "), " -> ",
+               length(.sz2), " group(s), all of size 1 on the ", nrow(base),
+               " retained rows.\nContinuing would change the null model to ",
+               "unrestricted permutation.\nNo analysis was run.",
+               call. = FALSE)
+      }
+      cor <- .frame_note(cor, "methylation",
+                         sprintf("%d missing value(s) affecting %d sample(s)",
+                                 .nna, .nr),
+                         sprintf(paste0("missing_methylation = \"common_",
+                                        "complete_rows\": %d sample(s) ",
+                                        "dropped, %d kept, all %d probe(s) ",
+                                        "retained"),
+                                 sum(!keep_r), sum(keep_r), ncol(BE)))
+    }
   }
   ## Dropping EVERY probe column is a different situation from dropping some,
   ## and it has one usual cause: the methylation set being analysed was not
@@ -915,7 +1946,26 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
          "another's cell-composition and batch covariates. Check that the ",
          "covariates belong to the same array as `methylation`.",
          call. = FALSE)
-  mv <- .frame_mvalues(BE)
+
+  ## ---- spec 49: THE METHYLATION SCALE IS DECLARED, NOT GUESSED ------------
+  ## "auto" keeps the historical behaviour (values inside [0,1] are treated as
+  ## beta). Declaring "beta" makes it checkable: values outside [0,1] are then
+  ## an error rather than being clamped to the boundary and called beta.
+  if (methylation_scale == "beta") {
+    rng <- range(BE, na.rm = TRUE)
+    if (rng[1] < 0 || rng[2] > 1)
+      stop("methylation_scale = \"beta\" was declared, but values run from ",
+           signif(rng[1], 4), " to ", signif(rng[2], 4),
+           ", outside [0, 1].\nThese are not beta values. Clamping them to ",
+           "the boundary would report something else entirely as beta.\n",
+           "Use methylation_scale = \"M\" if they are M-values, or fix the ",
+           "input.\nNo analysis was run.", call. = FALSE)
+  }
+  mv <- if (methylation_scale == "M") list(M = BE, converted = FALSE)
+        else .frame_mvalues(BE)
+  if (methylation_scale == "beta" && !mv$converted)
+    mv <- list(M = log2(pmin(pmax(BE, 1e-4), 1 - 1e-4) /
+                        (1 - pmin(pmax(BE, 1e-4), 1 - 1e-4))), converted = TRUE)
   if (mv$converted)
     cor <- .frame_note(cor, "methylation", "beta values detected",
                        "converted to M-values (log2 b/(1-b), eps 1e-4)")
@@ -1010,9 +2060,11 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   for (oc in outcome) {
     u <- unique(base[[oc]][is.finite(base[[oc]])])
     if (length(u) <= 1) stop("outcome '", oc, "' is constant", call. = FALSE)
-    if (length(u) == 2 && outcome_type == "gaussian") {
+    if (length(u) == 2 && outcome_type[[oc]] == "gaussian") {
       if (autofix) {
-        outcome_type <- "logistic"
+        ## spec 50: the switch lands on THIS outcome's family, not on a scalar
+        ## shared with every other outcome in the same frame.
+        outcome_type[[oc]] <- "logistic"
         ## "switched to logistic" reads as though a logistic regression is
         ## fitted. None is. Methylation is the RESPONSE and the outcome is a
         ## predictor of it, so a two-level outcome is a group contrast on a
@@ -1029,10 +2081,14 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
             paste0("treated as a group contrast (", oc, " = ", .k$lo, " vs ",
                    .k$hi, ") on a continuous response; no logistic model is ",
                    "fitted"))
-      } else stop("outcome '", oc, "' is binary; set outcome_type",
-                  call. = FALSE)
+      } else stop("outcome '", oc, "' is binary but its declared family is ",
+                  "gaussian.\nDeclare it: outcome_type = c(",
+                  paste(sprintf("%s = \"%s\"", outcome,
+                                ifelse(outcome == oc, "logistic",
+                                       outcome_type[outcome])),
+                        collapse = ", "), ")", call. = FALSE)
     }
-    if (length(u) > 2 && length(u) <= 6 && outcome_type == "gaussian" &&
+    if (length(u) > 2 && length(u) <= 6 && outcome_type[[oc]] == "gaussian" &&
         all(u == round(u)))
       cor <- .frame_note(cor, oc,
                          sprintf("%d distinct integer levels", length(u)),
@@ -1053,7 +2109,13 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
            nrow(mp), " mapped probe(s) remain overall, covering system id(s) ",
            paste(unique(mp$system_id), collapse = ", "),
            ". If `methylation` was given explicitly, it may not contain this ",
-           "system's columns.", call. = FALSE)
+           "system's columns.",
+           if (missing_methylation == "drop_probes")
+             paste0(" Note missing_methylation = \"drop_probes\" is in ",
+                    "effect: the corrections log says which probes were ",
+                    "dropped for missing values - this system's probes may ",
+                    "be among them.") else "",
+           call. = FALSE)
     al <- dmsa_align(data.frame(cpg = s$probe, d = s$best_direction,
                                 p_plus = s$p_plus),
                      genes = s$gene, level = "gene")
@@ -1082,6 +2144,37 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
              paste(sprintf("%s (%d)", shared_pairs$pair, shared_pairs$n_shared),
                    collapse = "; ")))
 
+  ## resolve level labels BY VALUE when the user names them (PI, 2026-08-29:
+  ## sex coded 1/2 with positional labels can silently flip in a human hand;
+  ## c("1" = "Husband", "2" = "Wife") cannot). An unnamed pair keeps the
+  ## documented positional rule: sorted level values, low then high.
+  .lvl_resolve <- function(.ol, .col, .what) {
+    .nm <- names(.ol)                 # as.character() drops names - keep them
+    .ol <- as.character(.ol); names(.ol) <- .nm
+    if (length(.ol) != 2L)
+      stop("each `", .what, "` entry must be exactly two labels", call. = FALSE)
+    if (is.null(names(.ol)) || !all(nzchar(names(.ol)))) return(unname(.ol))
+    .k <- .frame_outcome_kind(base, .col, blockv,
+                              .frame_which_build(names(data)))
+    if (is.na(.k$lo))
+      stop("'", .col, "' is not a two-level variable, so `", .what,
+           "` does not apply to it", call. = FALSE)
+    .want <- as.character(c(.k$lo, .k$hi))
+    if (!setequal(names(.ol), .want))
+      stop("`", .what, "` for '", .col, "' names value(s) ",
+           paste(setdiff(names(.ol), .want), collapse = ", "),
+           ", but its two levels are ", .want[1], " and ", .want[2],
+           ". Name them exactly: c(\"", .want[1], "\" = \"...\", \"",
+           .want[2], "\" = \"...\")", call. = FALSE)
+    unname(.ol[.want])
+  }
+  ## moderator level labels: only meaningful for a declared, two-level mod
+  if (!is.null(mod_levels)) {
+    if (!nzchar(mod))
+      stop("`mod_levels` labels the moderator's two levels, but no `mod = ` ",
+           "was declared", call. = FALSE)
+    mod_levels <- .lvl_resolve(mod_levels, mod, "mod_levels")
+  }
   frame <- structure(list(
     data = base, M = M, map = mp, sets = sets, systems = sys_tab,
     modules = mods, selection = cs,
@@ -1094,19 +2187,46 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
     ## names for the two levels of a two-level outcome, e.g. c("T1", "T4") or
     ## c("female", "male"). Without them the sentence has to fall back to
     ## "time = 0" / "time = 1", which is unambiguous but ugly.
-    outcome_levels = if (is.null(outcome_levels)) NULL else {
-      .ol <- as.character(outcome_levels)
-      if (length(.ol) != 2L)
-        stop("`outcome_levels` must be exactly two names for the two levels ",
-             "of a two-level outcome", call. = FALSE)
-      .ol
-    },
+    outcome_levels = if (is.null(outcome_levels)) NULL else
+      if (is.list(outcome_levels)) {
+        ## named list form (PI, 2026-08-29): per-outcome level labels, so a
+        ## multi-outcome frame can label each two-level outcome -
+        ## list(pills_past_T1 = c("not taking pills", "taking pills"))
+        if (is.null(names(outcome_levels)) ||
+            !all(names(outcome_levels) %in% outcome))
+          stop("`outcome_levels` given as a list must be named by outcome; ",
+               "unknown name(s): ",
+               paste(setdiff(names(outcome_levels), outcome), collapse = ", "),
+               call. = FALSE)
+        stats::setNames(lapply(names(outcome_levels), function(.oc)
+          .lvl_resolve(outcome_levels[[.oc]], .oc, "outcome_levels")),
+          names(outcome_levels))
+      } else {
+        if (length(outcome_levels) == 2L && length(outcome) == 1L)
+          .lvl_resolve(outcome_levels, outcome, "outcome_levels")
+        else {
+          .ol <- as.character(outcome_levels)
+          if (length(.ol) != 2L)
+            stop("`outcome_levels` must be exactly two names for the two ",
+                 "levels of a two-level outcome (or a named list of such ",
+                 "pairs, one per outcome)", call. = FALSE)
+          .ol
+        }
+      },
     outcome_kind = stats::setNames(lapply(outcome, function(.o)
       .frame_outcome_kind(base, .o, blockv, .frame_which_build(names(data)))),
       outcome),
-    shared_probes = shared_pairs,
+    shared_probes = shared_pairs, mod_levels = mod_levels,
+    ## which INSTALLATION built this frame: a frame object outlives package
+    ## reinstalls inside a long R session, and stored fields (outcome_kind,
+    ## labels, ...) then lag behind new fixes. dmsa_report() compares this
+    ## stamp with the running installation and says so (PI's pills battery
+    ## drew a stale linear display exactly this way, 2026-08-29).
+    built_stamp = tryCatch(
+      utils::packageDescription("dmsa")[["Built"]] %||% NA_character_,
+      error = function(e) NA_character_),
     labels = c(.lab_pairs(outcome, outcome_label, "outcome_label"),
-               .lab_pairs(covariates, predictor_labels, "predictor_labels"),
+               .lab_pairs(covariates, covariate_labels, "covariate_labels"),
                if (nzchar(mod) && !is.null(mod_label))
                  stats::setNames(as.character(mod_label)[1], mod) else NULL,
                if (nzchar(mod2) && !is.null(mod2_label))
@@ -1115,7 +2235,16 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
     levels = c(system = isTRUE(system), module = isTRUE(module),
                gene = isTRUE(gene), probe = isTRUE(probe)),
     moderation = isTRUE(moderation), mod = mod, mod2 = mod2,
-    type = type, outcome_type = outcome_type, frame_role = frame_role,
+    type = type,
+    ## one family per outcome (spec 50). A single-outcome frame stores the bare
+    ## string it always stored, so nothing downstream has to special-case the
+    ## ordinary run; multi-outcome frames store it named by outcome.
+    outcome_type = if (length(outcome_type) == 1L) unname(outcome_type)
+                   else outcome_type,
+    frame_role = frame_role,
+    ## spec 51: what is actually fitted, per path, in words. The main path's
+    ## direction is fixed by the estimand; the others follow `frame_role`.
+    model_orientation = .orient,
     cpg_map = cpg_map, B = as.integer(B), alpha = alpha, seed = seed,
     correction = correction, weighting = weighting, w_floor = w_floor,
     palette = palette,
@@ -1123,6 +2252,14 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
     plot_type = plot_type, table_type = table_type, outdir = outdir,
     gene_models = gene_models, progress = progress, beep = beep,
     corrections = cor, map_conflicts = conflicts, untestable = untestable,
+    ## spec 1/15/17: how direction was resolved, and - on the pair path - the
+    ## full CpG x gene pair ledger (every pair, used or not, with its reason)
+    direction_source = .src, tissue = if (!is.null(pair_rt)) tissue else NULL,
+    reference_name = if (!is.null(pair_rt)) {
+      if (inherits(.ref, "dmsa_reference")) (.ref$name %||% "reference")
+      else "reference" } else NULL,
+    pair_ledger = if (!is.null(pair_rt)) pair_rt$ledger else NULL,
+    measurements = if (!is.null(pair_rt)) pair_rt$measurements else NULL,
     kappa = kappa_, log2_permutations = as.numeric(logperm),
     block_sizes = bt, pilot = NULL), class = "dmsa_frame")
 
@@ -1190,21 +2327,47 @@ print.dmsa_frame <- function(x, ...) {
       vapply(x$sets, `[[`, "", "system"), fam,
       vapply(x$sets, function(s) length(s$columns), integer(1))),
       collapse = "; "), "\n")
+  ## spec 50: with one family per outcome, print the outcome WITH its family
+  ## rather than one family for the whole frame.
+  .ot <- x$outcome_type
+  if (length(.ot) > 1L)
+    cat("  outcome(s):", paste(sprintf("%s [%s]", x$outcome,
+        .ot[x$outcome]), collapse = ", "),
+        if (x$frame_role == "outcome") " [frame_role = outcome: these PREDICT the frame]" else "",
+        "\n")
+  else
   cat("  outcome(s):", paste(x$outcome, collapse = ", "),
       if (x$frame_role == "outcome") " [frame_role = outcome: these PREDICT the frame]" else "",
       "\n")
-  cat("  model:    ", x$outcome_type, x$type, "| outcome enters as a PREDICTOR of methylation",
-      if (x$outcome_type != "gaussian")
+  cat("  model:    ", paste(unique(.ot), collapse = "/"), x$type,
+      "| outcome enters as a PREDICTOR of methylation",
+      if (any(.ot != "gaussian"))
         "\n             (so a binary/categorical outcome is a group contrast on a continuous response - no link function is needed or used)" else "",
       "\n            ",
       if (x$moderation) sprintf("| moderation: frame x %s%s", x$mod,
         if (nzchar(x$mod2)) paste0(" x ", x$mod2) else "") else "",
       "\n")
+  ## spec 51: name the model each path fits, rather than leaving the reader to
+  ## infer it from `frame_role` - which governs only some of them.
+  if (!is.null(x$model_orientation)) {
+    .mo <- x$model_orientation
+    cat("  fits:      main   ", .mo$main, "\n", sep = "")
+    if (!is.na(.mo$shape))
+      cat("             shape  ", .mo$shape, "\n", sep = "")
+    if (!is.na(.mo$moderation))
+      cat("             moder. ", .mo$moderation,
+          "  [frame_role = ", x$frame_role, "]\n", sep = "")
+  }
   if (!is.null(x$module_evidence) && nrow(x$module_evidence)) {
     cat("  sets:     ", x$selection$name, "\n", sep = "")
     .cas_evidence_banner(x$module_evidence, indent = "  ")
     .cas_polarity_banner(list(polarity = x$polarity_table), indent = "  ")
   }
+  if (!is.null(x$direction_source) && x$direction_source == "cpgdirection")
+    cat("  direction: cpgdirection pairs (", x$tissue, "), reference: ",
+        x$reference_name, " | ",
+        sum(x$pair_ledger$used), " of ", nrow(x$pair_ledger),
+        " pair(s) used - dmsa_coverage() itemises\n", sep = "")
   cat("  map:      cpg_map =", x$cpg_map,
       if (nrow(x$map_conflicts)) sprintf("(%d unit(s) DISAGREE between maps - see $map_conflicts)",
                                          nrow(x$map_conflicts)) else "(maps agree)", "\n")

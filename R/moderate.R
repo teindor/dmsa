@@ -97,7 +97,9 @@ dmsa_moderate <- function(data, probes, alignment, outcome, moderator, design,
     .old_seed <- if (exists(".Random.seed", envir = globalenv()))
       get(".Random.seed", envir = globalenv()) else NULL
     on.exit(if (!is.null(.old_seed))
-      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+      assign(".Random.seed", .old_seed, envir = globalenv())
+      else if (exists(".Random.seed", envir = globalenv()))
+        rm(".Random.seed", envir = globalenv()), add = TRUE)
     set.seed(seed)
   }
   data <- as.data.frame(data)
@@ -145,7 +147,7 @@ dmsa_moderate <- function(data, probes, alignment, outcome, moderator, design,
   ## collinearity of the product term with its parents -- the centering check
   vif_int <- {
     r2 <- summary(stats::lm(stats::as.formula(
-      paste("I(.S*.M) ~ .S + .M +", paste(design$fixed, collapse = "+"))), dat))$r.squared
+      paste(c("I(.S*.M) ~ .S + .M", design$fixed), collapse = " + ")), dat))$r.squared
     1 / max(1 - r2, 1e-12)
   }
 
@@ -185,29 +187,64 @@ dmsa_moderate <- function(data, probes, alignment, outcome, moderator, design,
   }
 
   ## ---- simple slopes at +/- 1 SD of the moderator --------------------------
-  b_S <- cl[".S", 1]
-  v_SS <- V_lm[".S", ".S"]; v_II <- V_lm[ix, ix]; v_SI <- V_lm[".S", ix]
+  ## E7 fix (2026-08-29, PI-approved): every ingredient - the slope, the
+  ## interaction coefficient, and all three (co)variances - comes from ONE
+  ## fitted model: the mixed model when it is the reported engine, the lm
+  ## otherwise. The old code spliced b_S and the vcov from lm with b_rep
+  ## from lmer, so the printed slope belonged to neither model.
+  if (use_lmer && exists("fm") && !is.null(fm) &&
+      ".S" %in% names(lme4::fixef(fm))) {
+    Vr <- as.matrix(stats::vcov(fm))
+    kI <- if (ix %in% rownames(Vr)) ix else
+      grep(":", rownames(Vr), value = TRUE)[1]
+    b_S  <- unname(lme4::fixef(fm)[".S"])
+    b_I  <- unname(lme4::fixef(fm)[kI])
+    v_SS <- Vr[".S", ".S"]; v_II <- Vr[kI, kI]; v_SI <- Vr[".S", kI]
+    ## Wald/normal reference for the mixed model (its residual df is not
+    ## uniquely defined); the lm branch keeps its exact t reference
+    tc <- stats::qnorm(.975); .pfun <- function(t) 2 * stats::pnorm(-abs(t))
+  } else {
+    b_S <- cl[".S", 1]; b_I <- b_lm
+    v_SS <- V_lm[".S", ".S"]; v_II <- V_lm[ix, ix]; v_SI <- V_lm[".S", ix]
+    tc <- stats::qt(.975, stats::df.residual(fit_lm))
+    .pfun <- function(t) 2 * stats::pt(-abs(t), df = stats::df.residual(fit_lm))
+  }
   at <- c(-1, 1) * sdM
   ss <- data.frame(
     at_moderator = c("-1 SD", "+1 SD"),
     moderator_value = at + if (center) mod_mean else 0,
-    slope = b_S + b_rep * at,
+    slope = b_S + b_I * at,
     se = sqrt(v_SS + at^2 * v_II + 2 * at * v_SI))
   ss$t <- ss$slope / ss$se
-  ss$p <- 2 * stats::pt(-abs(ss$t), df = stats::df.residual(fit_lm))
+  ss$p <- .pfun(ss$t)
 
   ## ---- Johnson-Neyman region ----------------------------------------------
-  tc <- stats::qt(.975, stats::df.residual(fit_lm))
-  A <- v_II * tc^2 - b_rep^2
-  Bq <- 2 * (v_SI * tc^2 - b_S * b_rep)
+  ## the slope is significant where A w^2 + Bq w + Cq <= 0. The parabola
+  ## opens DOWN when A < 0 (significant OUTSIDE the roots) and UP when A > 0
+  ## (significant BETWEEN the roots - the everyday strong-main-effect /
+  ## weak-interaction case, which the old code reported inverted). With no
+  ## real roots the sign of A alone decides: everywhere (A < 0) or nowhere.
+  A <- v_II * tc^2 - b_I^2
+  Bq <- 2 * (v_SI * tc^2 - b_S * b_I)
   Cq <- v_SS * tc^2 - b_S^2
   disc <- Bq^2 - 4 * A * Cq
-  jn <- if (disc < 0 || A == 0) c(NA_real_, NA_real_) else
-    sort((-Bq + c(-1, 1) * sqrt(disc)) / (2 * A))
-  jn_raw <- jn + if (center) mod_mean else 0
   obs_range <- range(dat[[moderator]], na.rm = TRUE)
-  in_region <- if (any(is.na(jn))) NA_real_ else
-    mean(dat[[moderator]] < jn_raw[1] | dat[[moderator]] > jn_raw[2], na.rm = TRUE)
+  if (A == 0 || disc < 0) {
+    jn <- c(NA_real_, NA_real_)
+    jn_region <- if (A < 0 || (A == 0 && Cq <= 0)) "everywhere" else "nowhere"
+    in_region <- if (jn_region == "everywhere") 1 else 0
+  } else {
+    jn <- sort((-Bq + c(-1, 1) * sqrt(disc)) / (2 * A))
+    jn_region <- if (A > 0) "between" else "outside"
+    jn_raw0 <- jn + if (center) mod_mean else 0
+    in_region <- if (jn_region == "between")
+      mean(dat[[moderator]] >= jn_raw0[1] & dat[[moderator]] <= jn_raw0[2],
+           na.rm = TRUE)
+    else
+      mean(dat[[moderator]] < jn_raw0[1] | dat[[moderator]] > jn_raw0[2],
+           na.rm = TRUE)
+  }
+  jn_raw <- jn + if (center) mod_mean else 0
 
   structure(list(
     call = match.call(), design = design, outcome = outcome,
@@ -217,7 +254,8 @@ dmsa_moderate <- function(data, probes, alignment, outcome, moderator, design,
     p_perm = p_perm, vif_interaction = vif_int,
     engine = if (use_lmer) "lmer (reported) / lm (null)" else "lm",
     icc = icc, simple_slopes = ss,
-    jn_bounds = jn_raw, jn_share = in_region, moderator_range = obs_range,
+    jn_bounds = jn_raw, jn_region = jn_region,
+    jn_share = in_region, moderator_range = obs_range,
     null_t = null_t, B = B
   ), class = "dmsa_moderate")
 }
@@ -241,10 +279,13 @@ print.dmsa_moderate <- function(x, ...) {
   cat("  simple slopes:\n")
   print(format(x$simple_slopes, digits = 3), row.names = FALSE)
   if (all(is.finite(x$jn_bounds))) {
-    cat(sprintf("  Johnson-Neyman: significant outside [%.2f, %.2f]; %.0f%% of the sample",
+    cat(sprintf("  Johnson-Neyman: significant %s [%.2f, %.2f]; %.0f%% of the sample",
+                x$jn_region %||% "outside",
                 x$jn_bounds[1], x$jn_bounds[2], 100 * x$jn_share))
     cat(sprintf("\n    (moderator observed range %.2f to %.2f)\n", x$moderator_range[1],
                 x$moderator_range[2]))
-  } else cat("  Johnson-Neyman: no region of significance\n")
+  } else if (identical(x$jn_region, "everywhere"))
+    cat("  Johnson-Neyman: significant across the whole moderator range\n")
+  else cat("  Johnson-Neyman: no region of significance\n")
   invisible(x)
 }

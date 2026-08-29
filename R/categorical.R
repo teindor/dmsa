@@ -259,16 +259,23 @@ dmsa_omnibus <- function(data, Y, design, beta_input = TRUE, B = 999,
 
   blk <- if (!is.null(design$exchangeable)) dat[[design$exchangeable]] else
     seq_len(n)
-  idx <- split(seq_len(n), blk)
   ## restore the caller's RNG state on exit: a permutation seed is for
   ## reproducing THIS result, not for silently reseeding the user's session.
   .old_seed <- if (exists(".Random.seed", envir = globalenv()))
     get(".Random.seed", envir = globalenv()) else NULL
   on.exit(if (!is.null(.old_seed))
-    assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+    assign(".Random.seed", .old_seed, envir = globalenv())
+    else if (exists(".Random.seed", envir = globalenv()))
+      rm(".Random.seed", envir = globalenv()), add = TRUE)
   set.seed(seed)
-  null <- vapply(seq_len(B), function(b) {
-    o <- unlist(idx[sample.int(length(idx))], use.names = FALSE)
+  ## E6 fix (2026-08-29, PI-approved): the hand-rolled shuffle here wrote
+  ## block-sorted values back into ORIGINAL row order, scrambling values
+  ## across families whenever rows were not block-contiguous - a null that
+  ## was neither block-respecting nor cleanly unrestricted. The shared
+  ## engine routine (size-stratified whole-block swaps, rows kept in place)
+  ## is used instead, one permutation scheme package-wide.
+  idxs <- dmsa_block_index(blk, B)
+  null <- vapply(idxs, function(o) {
     d2 <- dat; d2[[v]] <- dat[[v]][o]
     sumF(stats::model.matrix(stats::reformulate(full_rhs), d2))
   }, numeric(1))

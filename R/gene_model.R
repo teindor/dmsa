@@ -172,8 +172,9 @@
   out$strand <- d$strand
   out$transcript <- d$transcript
   out$transcript_biotype <- if (!is.null(d$biotype)) d$biotype else NA_character_
-  out$canonical <- d$transcript %in% (if (!is.null(g$canonical)) g$canonical else
-    .gm_pick_canonical(d))
+  out$canonical <- d$transcript %in%
+    (if (!is.null(g$canonical) && !all(is.na(g$canonical))) g$canonical
+     else .gm_pick_canonical(d))
   out$feature <- d$feature
   out$start <- d$start
   out$end <- d$end
@@ -224,6 +225,14 @@
   .gm_assemble(g, ex, cds, gene, "gff", genome)
 }
 
+## One flat field out of a one-level JSON object, with no JSON dependency.
+## Only used on Ensembl lookup responses, whose relevant fields are scalars.
+.gm_json_field <- function(txt, key) {
+  m <- regmatches(txt, regexec(
+    sprintf('"%s"[[:space:]]*:[[:space:]]*"?([^",}]+)"?', key), txt))[[1]]
+  if (length(m) < 2L) NA_character_ else m[2]
+}
+
 ## Ensembl REST. Two calls: the gene's span and canonical transcript, then the
 ## features in that span. GFF3 rather than JSON so no JSON parser is needed -
 ## and so the same parser covers a user's own GTF.
@@ -237,8 +246,15 @@
     on.exit(try(close(con), silent = TRUE), add = TRUE)
     paste(readLines(con, warn = FALSE), collapse = "\n")
   }
+  ## lookup/symbol serves json/xml/jsonp ONLY - requesting text/x-gff3 here
+  ## was an unconditional HTTP 400 from Ensembl ("HTTP response code said
+  ## error" on every machine, online or not; found 2026-08-29 when
+  ## gene_models = "auto" first exercised this path live). The four fields
+  ## needed are flat in the JSON, so they are read with anchored regexes
+  ## and no JSON dependency; the feature call below stays GFF3, which
+  ## overlap/region does support.
   loc <- tryCatch(
-    rd(sprintf("%s/lookup/symbol/%s/%s?content-type=text/x-gff3", host,
+    rd(sprintf("%s/lookup/symbol/%s/%s?content-type=application/json", host,
                utils::URLencode(species), utils::URLencode(gene))),
     error = function(e) NULL)
   if (is.null(loc) || !nzchar(loc)) {
@@ -247,11 +263,16 @@
               " - the gene model will be omitted rather than guessed")
     return(.gm_empty())
   }
-  gl <- .gm_read_gff(loc, text = TRUE)
-  if (is.null(gl) || !nrow(gl)) return(.gm_empty())
-  gr <- gl[tolower(gl$type) %in% c("gene", "ncrna_gene"), , drop = FALSE]
-  if (!nrow(gr)) gr <- gl[1, , drop = FALSE]
-  chr <- gr$chr[1]; gs <- min(gr$start); ge <- max(gr$end)
+  .jv <- function(key) .gm_json_field(loc, key)
+  chr <- .jv("seq_region_name")
+  gs <- suppressWarnings(as.numeric(.jv("start")))
+  ge <- suppressWarnings(as.numeric(.jv("end")))
+  if (is.na(chr) || !is.finite(gs) || !is.finite(ge)) {
+    if (!quiet)
+      message("Ensembl's answer for ", gene, " carried no genomic span - ",
+              "the gene model will be omitted rather than guessed")
+    return(.gm_empty())
+  }
   feat <- tryCatch(
     rd(sprintf("%s/overlap/region/%s/%s:%d-%d?feature=exon;feature=cds;content-type=text/x-gff3",
                host, utils::URLencode(species), chr, gs, ge)),
@@ -268,8 +289,8 @@
   keep <- d$start >= gs & d$end <= ge
   d <- d[keep, , drop = FALSE]
   g <- list(start = gs, end = ge,
-            gene_id = .gm_attr(gr$attr[1], "gene_id"),
-            canonical = .gm_attr(gr$attr[1], "canonical_transcript"))
+            gene_id = .jv("id"),
+            canonical = .jv("canonical_transcript"))
   if (!is.na(g$canonical)) g$canonical <- sub("\\.\\d+$", "", g$canonical)
   ex <- d[tolower(d$type) == "exon", , drop = FALSE]
   cds <- d[tolower(d$type) == "cds", , drop = FALSE]

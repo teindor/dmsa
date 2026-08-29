@@ -72,6 +72,13 @@ dmsa_scores <- function(M, alignment, method = c("expected", "fixed"),
   M <- as.matrix(M); mode(M) <- "numeric"
   m <- if (is.numeric(alignment)) alignment else {
     al <- as.data.frame(alignment)
+    ## E9: multipliers are applied by position, so when both sides carry
+    ## probe names the positional assumption is CHECKED (and an unambiguous
+    ## scramble of the same probes is repaired) instead of trusted
+    if (!is.null(al$probe) && nrow(al) == ncol(M)) {
+      .ord <- .dmsa_align_order(colnames(M), al$probe)
+      if (is.numeric(.ord)) al <- al[.ord, , drop = FALSE]
+    }
     mm <- if (method == "fixed") as.numeric(al$s) else
       2 * as.numeric(al$p_s_plus) - 1
     us <- if (!is.null(al$usable)) as.logical(al$usable) else rep(TRUE, length(mm))
@@ -109,7 +116,15 @@ dmsa_scores <- function(M, alignment, method = c("expected", "fixed"),
   if ("blind"   %in% flavours) out$blind   <- rowMeans(abs(Z))
   if ("pc1"     %in% flavours) out$pc1 <- tryCatch({
     p <- stats::prcomp(Z, center = TRUE, scale. = FALSE); s <- p$x[, 1]
-    if (stats::cor(s, al) < 0) s <- -s
+    ## E10 (PI-approved): with all multipliers zero, `al` is 0/0 = NaN and
+    ## cor(s, al) threw inside this tryCatch, silently turning pc1 into an
+    ## all-NA column - in exactly the situation the aligned-score error
+    ## message steers users to pc1. Orient against `al` only when an aligned
+    ## reference exists; otherwise return the (arbitrarily signed) PC1 as is.
+    if (all(is.finite(al))) {
+      cr <- suppressWarnings(stats::cor(s, al))
+      if (is.finite(cr) && cr < 0) s <- -s
+    }
     s }, error = function(e) rep(NA_real_, nrow(Z)))
   as.data.frame(lapply(out[flavours[flavours %in% names(out)]],
                        function(v) as.numeric(scale(v))))
@@ -135,7 +150,11 @@ dmsa_scores <- function(M, alignment, method = c("expected", "fixed"),
 #'   valid relabelling.
 #' @param B Permutations.
 #' @param seed Optional integer.
-#' @param nulls Optional list of pre-computed permutation null matrices, as returned by an earlier call on the same frame. Supplying it reuses the shared permutation stream instead of drawing a new one, which is what keeps lens, engine and level results jointly calibrated.
+#' @param nulls Logical (default \code{FALSE}). \code{TRUE} returns the
+#'   vector of permutation null statistics as \code{$null_t} alongside the
+#'   test, so a caller can compose joint corrections on one stream. (Joint
+#'   calibration across lenses, engines and levels comes from sharing the
+#'   \code{seed}, which \code{dmsa_model_omnibus()} does for you.)
 #' @return An object of class \code{dmsa_model}.
 #' @examples
 #' set.seed(1)
@@ -155,7 +174,11 @@ dmsa_model <- function(formula, data, term, block = NULL, B = 1999,
     .old_seed <- if (exists(".Random.seed", envir = globalenv()))
       get(".Random.seed", envir = globalenv()) else NULL
     on.exit(if (!is.null(.old_seed))
-      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+      assign(".Random.seed", .old_seed, envir = globalenv())
+      else if (exists(".Random.seed", envir = globalenv()))
+        ## E10: a true restore of "no prior RNG state" - otherwise a fresh
+        ## session leaves deterministically seeded mid-stream of `seed`
+        rm(".Random.seed", envir = globalenv()), add = TRUE)
     set.seed(seed)
   }
   block <- .dmsa_rows(block, as.data.frame(data), "block")

@@ -66,7 +66,13 @@ test_that("anchors come from the anchor column, else role, else are inferred", {
 
   d2 <- transform(base, role = c("readout", "driver", "brake"))
   r2 <- dmsa_reference_csv(wcsv(d2), quiet = TRUE)
-  expect_equal(r2$anchors$gene, "B"); expect_equal(r2$anchor_method, "curated")
+  ## provenance is "user": these anchors are derived from the USER's role
+  ## column, not from package curation ("curated" was a misstatement)
+  expect_equal(r2$anchors$gene, "B"); expect_equal(r2$anchor_method, "user")
+  ## and role matching is EXACT - "brake-of-driver" must never anchor
+  d2b <- transform(base, role = c("driver", "brake-of-driver", "readout"))
+  r2b <- dmsa_reference_csv(wcsv(d2b), quiet = TRUE)
+  expect_equal(r2b$anchors$gene, "A")
 
   expect_warning(r3 <- dmsa_reference_csv(wcsv(base), quiet = TRUE),
                  "anchors inferred")

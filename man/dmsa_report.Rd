@@ -4,7 +4,7 @@
 \alias{dmsa_report}
 \title{Run a declared frame and deliver figures, tables and a summary}
 \usage{
-dmsa_report(frame, progress = NULL, beep = NULL)
+dmsa_report(frame, progress = NULL, beep = NULL, overwrite = FALSE)
 }
 \arguments{
 \item{frame}{a \code{\link{dmsa_frame}}.}
@@ -15,6 +15,10 @@ value declared on the frame, which itself defaults to \code{interactive()}.}
 \item{beep}{Completion sound. \code{NULL} (default) takes the frame's value.
 \code{TRUE} is \pkg{beepr} sound 8; a number picks another; \code{FALSE}
 is silent. Without \pkg{beepr} installed this is a no-op.}
+
+\item{overwrite}{Replace an existing report in `outdir`? Default FALSE:
+a directory that already holds DMSA output is refused rather than
+silently overwritten.}
 }
 \value{
 object of class \code{dmsa_report}: file paths and result tables,

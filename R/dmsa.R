@@ -3,6 +3,11 @@
 #                             x w_g (gene -> system activation, curated polarity)
 # Gene-level analysis uses d_j alone; system-level uses d_j * w_g.
 
+# Session-scoped memo so the all-one-direction note in dmsa_align() is said
+# once per distinct probe set, not once per lens battery (three lenses would
+# otherwise repeat it verbatim three times per report).
+.dmsa_align_once <- new.env(parent = emptyenv())
+
 #' Alpha panel gene -> system map (bundled)
 #'
 #' Read the Project Alpha gene codebook shipped with the package:
@@ -160,6 +165,9 @@ dmsa_align <- function(direction, genes = NULL,
       "dmsa: %d of %d probes carry a call in the bundled %s map (%.0f%%), %d probe-gene pairs [map %s]",
       covered, length(asked), tissue, 100 * covered / length(asked),
       nrow(got), map_meta$version))
+    ## E9: rows come back in the order of the probes the CALLER passed, not
+    ## the bundled map's storage order - every consumer joins by position
+    got <- got[order(match(got$probe, asked)), , drop = FALSE]
     genes <- got$gene
     direction <- got[, c("probe", "d", "p_plus")]
     names(direction)[1] <- "cpg_id"
@@ -192,16 +200,48 @@ dmsa_align <- function(direction, genes = NULL,
               "call they contribute is -1. Filter them out before aligning ",
               "unless you have a specific reason not to.", call. = FALSE)
   }
-  ## A generic backstop for any other source: a large block of probes sharing
-  ## one direction is either real biology or an instrument artefact, and the
-  ## caller should know which.
+  ## A large block of probes sharing one direction is either real biology or
+  ## an instrument artefact - but WHICH depends on where the calls came from
+  ## (PI, 2026-08-29: "if cpgdirection works, it works; if the user CAN do
+  ## something, tell them what and where"). Calls resolved by cpgdirection
+  ## carry evidence tiers, and an all-one-way set there is usually genuine
+  ## curation: say so once, as a message, with the exact places to verify.
+  ## Calls from a user map or a bare `d` vector carry no evidence, and an
+  ## all-one-way block is the signature of a mis-built map: keep the
+  ## warning, and make it name the check. Either way it is said ONCE per
+  ## set per session, not once per lens battery.
   if (sum(!is.na(out$d)) >= 50) {
     fp <- mean(out$d[!is.na(out$d)] > 0)
-    if (fp == 0 || fp == 1)
-      warning("every one of ", sum(!is.na(out$d)), " direction calls is ",
-              if (fp == 1) "+1" else "-1",
-              ". Check the direction source before trusting an aligned test.",
-              call. = FALSE)
+    if (fp == 0 || fp == 1) {
+      .dirtxt <- if (fp == 1) "+1" else "-1"
+      .has_ev <- any(c("best_evidence", "direction_tier") %in% names(dd))
+      .sig <- paste(sum(!is.na(out$d)), .dirtxt, .has_ev,
+                    if (!is.null(out$probe)) out$probe[1] else "",
+                    if (!is.null(out$probe)) out$probe[nrow(out)] else "")
+      if (!exists(.sig, envir = .dmsa_align_once, inherits = FALSE)) {
+        assign(.sig, TRUE, envir = .dmsa_align_once)
+        if (.has_ev)
+          message("dmsa_align(): all ", sum(!is.na(out$d)),
+                  " direction calls in this set are ", .dirtxt,
+                  ". With cpgdirection-resolved calls this is usually ",
+                  "genuine curation (the whole set's methylation ",
+                  if (fp == 1) "raises" else "lowers",
+                  " expression). To verify, read the per-probe calls with ",
+                  "their evidence: tables/analysis_set.csv (columns ",
+                  "direction, direction_tier, evidence), or frame$map. ",
+                  "One-way evidence layers are flagged separately. ",
+                  "(Shown once per set.)")
+        else
+          warning("every one of ", sum(!is.na(out$d)),
+                  " direction calls is ", .dirtxt,
+                  ", and these calls carry NO evidence tiers (a user map ",
+                  "or bare `d` vector). A biological set usually mixes ",
+                  "+1 and -1, so check the map you supplied - ",
+                  "table(map$best_direction), or frame$map after the ",
+                  "build - before trusting an aligned test.",
+                  call. = FALSE)
+      }
+    }
   }
 
   ## P(d = +1). A probe whose confidence cannot be recovered here does not
@@ -289,13 +329,38 @@ dmsa_align <- function(direction, genes = NULL,
         stop("no polarity rows for system_id = ", system_id,
              "; check the id against dmsa_systems()", call. = FALSE)
     } else {
-      pol <- as.data.frame(polarity)
-      if (!all(c("gene", "w_g") %in% names(pol)))
+      ## E4 fix (2026-08-29, PI-approved): a user table MERGES with the
+      ## bundled curation, exactly as the documentation has always promised -
+      ## user rows override gene-for-gene, the bundled table fills every gene
+      ## the user did not name. The old code silently REPLACED the bundled
+      ## table, so polarity = data.frame(gene = "NR3C1", w_g = +1) built a
+      ## system in which every other gene had no polarity at all.
+      usr <- as.data.frame(polarity)
+      if (!all(c("gene", "w_g") %in% names(usr)))
         stop("user polarity needs columns 'gene' and 'w_g' (+1/-1/0)")
-    }
-    ## user table overrides bundled where both exist
-    if (is.data.frame(polarity) && identical(attr(pol, "status"), "draft")) {
-      # (bundled only - nothing to merge)
+      usr$gene <- as.character(usr$gene)
+      if (anyDuplicated(usr$gene[if (!is.null(usr$system_id) &&
+                                     !is.null(system_id))
+        as.character(usr$system_id) == as.character(system_id) else
+          rep(TRUE, nrow(usr))]))
+        stop("user polarity lists the same gene more than once",
+             call. = FALSE)
+      bnd <- tryCatch(alpha_polarity(), error = function(e) NULL)
+      if (!is.null(bnd) && !is.null(system_id))
+        bnd <- bnd[bnd$system_id == as.character(system_id), , drop = FALSE]
+      if (!is.null(usr$system_id) && !is.null(system_id))
+        usr <- usr[as.character(usr$system_id) == as.character(system_id), ,
+                   drop = FALSE]
+      if (!is.null(bnd) && nrow(bnd)) {
+        fill <- bnd[!bnd$gene %in% usr$gene, , drop = FALSE]
+        pol <- rbind(usr[intersect(c("gene", "w_g"), names(usr))],
+                     fill[c("gene", "w_g")])
+        n_here <- length(intersect(out$gene, usr$gene))
+        message(sprintf(paste0("dmsa: polarity merged - %d gene(s) from ",
+                               "your table (%d used here), %d filled from ",
+                               "the bundled Alpha curation."),
+                        nrow(usr), n_here, nrow(fill)))
+      } else pol <- usr
     }
     idx <- match(out$gene, pol$gene)
     out$w_g <- pol$w_g[idx]

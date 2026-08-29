@@ -51,9 +51,13 @@ combined by interaction), or per-row labels (family/cluster id).}
 
 \item{winsor}{Passed to \code{dmsa_scores()}.}
 
-\item{gate}{Logical. If \code{TRUE} (default) a level is entered only after the level above it has produced a surviving unit, which is the level-local cascade; if \code{FALSE} every declared level is tested independently.}
+\item{gate}{Which arm(s) to run: \code{"both"} (default), \code{"sparse"}
+(survivors descend one unit at a time), or \code{"dense"} (a surviving
+family descends whole).}
 
-\item{sparse_reach}{Integer. Maximum number of units carried forward from a level into the level below it, used to keep a wide family from expanding the cascade without bound.}
+\item{sparse_reach}{How far a sparse survivor reaches down the hierarchy:
+\code{"children"} (default) descends one level; a level name (e.g.
+\code{"probe"}) descends straight to that level.}
 
 \item{seed}{Optional integer.}
 }

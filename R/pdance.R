@@ -158,7 +158,9 @@ dmsa_pdance <- function(engines, set, focal, pool = NULL,
     .old_seed <- if (exists(".Random.seed", envir = globalenv()))
       get(".Random.seed", envir = globalenv()) else NULL
     on.exit(if (!is.null(.old_seed))
-      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+      assign(".Random.seed", .old_seed, envir = globalenv())
+      else if (exists(".Random.seed", envir = globalenv()))
+        rm(".Random.seed", envir = globalenv()), add = TRUE)
     set.seed(seed)
   }
 
@@ -177,9 +179,11 @@ dmsa_pdance <- function(engines, set, focal, pool = NULL,
   for (g in grid) for (r in seq_len(R)) {
     u <- if (identical(form, "dropout")) {
       keep <- round((1 - g) * length(free))
-      c(focal, if (keep > 0) sample(free, keep) else free[0])
+      ## sample the ELEMENTS, never sample(n, k): with a single remaining
+      ## integer column index k, sample(k, 1) draws from 1:k instead
+      c(focal, if (keep > 0) free[sample.int(length(free), keep)] else free[0])
     } else {
-      c(set, sample(pool, g))
+      c(set, pool[sample.int(length(pool), g)])
     }
     p <- run(u)
     sig <- !is.na(p) & p < alpha

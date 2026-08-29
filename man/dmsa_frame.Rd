@@ -8,18 +8,31 @@ dmsa_frame(
   data,
   methylation = NULL,
   map = "alpha",
+  reference = "alpha",
+  direction_source = c("auto", "cpgdirection", "bundled"),
+  tissue = "blood",
+  replicate_policy = c("collapse_site", "keep_correlated"),
+  cpgs_include = NULL,
+  cpgs_exclude = NULL,
+  sample_id = NULL,
+  sample_align = c("id", "positional"),
+  missing_methylation = c("error", "drop_probes", "common_complete_rows"),
+  methylation_scale = c("auto", "beta", "M"),
   system = TRUE,
   module = FALSE,
   gene = TRUE,
   probe = TRUE,
   systems = NULL,
   sets = "alpha",
-  outcome,
+  ...,
+  outcomes = NULL,
+  predictors = NULL,
   covariates = "contract",
   random_effects = "cID",
   chip = TRUE,
   chip_effect = c("random", "fixed", "none"),
   outcome_levels = NULL,
+  predictor_levels = NULL,
   moderation = FALSE,
   mod = "",
   mod2 = "",
@@ -27,10 +40,12 @@ dmsa_frame(
   predictor_labels = NULL,
   mod_label = NULL,
   mod2_label = NULL,
+  covariate_labels = NULL,
+  mod_levels = NULL,
   type = c("linear", "non-linear", "exponential"),
   outcome_type = c("gaussian", "logistic", "multinomial"),
   frame_role = c("predictor", "outcome"),
-  cpg_map = c("confidence", "full"),
+  cpg_map = c("full", "confidence"),
   B = 1999,
   alpha = 0.05,
   seed = 1,
@@ -41,7 +56,7 @@ dmsa_frame(
   plots = TRUE,
   tables = TRUE,
   summary = TRUE,
-  gene_models = FALSE,
+  gene_models = "auto",
   progress = interactive(),
   beep = interactive(),
   plot_type = c("png", "pdf"),
@@ -58,7 +73,79 @@ the Alpha methylation columns.}
 \code{data}), a character vector of column names, or a numeric matrix
 whose colnames are probe/column ids.}
 
-\item{map}{"alpha" for the bundled Project Alpha map, or a data.frame.}
+\item{map}{"alpha" for the bundled Project Alpha map, or a data.frame.
+Used by the BUNDLED direction source only; passing a table forces
+\code{direction_source = "bundled"}.}
+
+\item{reference}{The biological reference (system > module > gene) that
+defines membership on the pair path: \code{"alpha"} (default, the 2026c
+codebook - 30 systems, 187 modules, 1,282 genes) or a
+\code{dmsa_reference} object. The reference never selects CpGs: which
+CpGs exist is read from the data, which genes they support from
+cpgdirection, and the reference then says which of those genes belong to
+the biology being asked about.}
+
+\item{direction_source}{Where CpG-to-gene direction comes from.
+\code{"auto"} (default) uses \code{cpgdirection::cpg_gene_pairs()} -
+one row per CpG x gene pair, direction resolved within the pair,
+pair-specific abstention - when cpgdirection is installed, and otherwise
+falls back to the bundled per-column Alpha snapshot with a recorded
+note. \code{"cpgdirection"} requires the package; \code{"bundled"}
+forces the snapshot. On the pair path the frame keeps the full pair
+ledger (\code{$pair_ledger}; see \code{dmsa_coverage()}). For testing,
+\code{options(dmsa.pair_table = <pair data.frame>)} injects a pair table
+in place of the live \code{cpg_gene_pairs()} call - the regression suite
+uses this seam so the pair path is exercised on machines where
+cpgdirection is not installed.}
+
+\item{tissue}{Tissue context for pair discovery: \code{"blood"} (default),
+\code{"nasal_epithelium"}, or \code{"solid_tissue"}. Pair path only.}
+
+\item{replicate_policy}{\code{"collapse_site"} (default): several probe
+designs of one CpG are ONE measurement, averaged on the beta scale
+before analysis (a missing value in any replicate keeps the site visible
+to \code{missing_methylation} rather than quietly narrowing its basis);
+\code{"keep_correlated"} keeps every design as its own measurement.
+Pair path only.}
+
+\item{cpgs_include, cpgs_exclude}{Optional CpG-set selection by NAME
+pattern, for methylation files that carry several biological groups in
+one table (in Alpha's child file, \code{"_maternal"} and
+\code{"_paternal"} mark the parents' probes; the child's carry no
+tag). Fixed substrings, not regular expressions: a CpG column survives
+\code{cpgs_include} if its name contains ANY of the patterns
+(\code{NULL} = all), and is then removed by \code{cpgs_exclude} if it
+contains any of those. Analysing the child is one line:
+\code{cpgs_exclude = c("_maternal", "_paternal")}. Only CpG-site
+columns are filtered - outcomes and covariates are never touched - and
+the drop is recorded in the corrections table. See also
+\code{dmsa_cpg_columns()} for the same filter as a standalone helper.}
+
+\item{sample_id}{Optional column of \code{data} holding sample
+identifiers. When the methylation matrix carries rownames, rows are
+matched by identifier and reordered to match \code{data}; any
+mismatch or duplication is an error rather than a silent
+realignment.}
+
+\item{sample_align}{"id" (default) matches a methylation matrix to
+\code{data} by sample identifier where identifiers exist;
+"positional" declares that the rows are already in the same order.
+With no identifiers on either side a shuffle is undetectable, so
+alignment falls back to positional and is recorded in the
+corrections table.}
+
+\item{missing_methylation}{What to do when the methylation block contains
+missing or non-finite values. \code{"error"} (default) stops and reports
+how many probes and samples are affected; \code{"drop_probes"} removes the
+affected probes and records it; \code{"common_complete_rows"} keeps every
+probe and analyses the samples complete across all of them. There is no
+silent option: downstream a probe with any non-finite value is dropped
+from its set, and that must be a declared choice.}
+
+\item{methylation_scale}{\code{"auto"} (default) treats values inside
+[0, 1] as beta and converts them to M-values; \code{"beta"} declares them
+beta, and values outside [0, 1] are then an error rather than being
+clamped; \code{"M"} declares M-values and converts nothing.}
 
 \item{system, module, gene, probe}{logical: which levels to analyse.}
 
@@ -77,15 +164,43 @@ narrow a lower level. Run \code{dmsa_systems()} to print the short names.}
 (module membership then falls back to the legacy bundled module map). See
 \code{dmsa_sets_template()} for the schema.}
 
-\item{outcome}{character vector of outcome column(s). With several, each is
-tested with the others as covariates (mutual adjustment). When
-\code{frame_role = "outcome"} these are the exposure/predictor column(s).}
+\item{...}{Not for new arguments. The former \code{outcome} argument is
+accepted here so existing scripts keep working (it means exactly
+\code{outcomes}); anything else is an error. A side effect of this slot:
+every argument after \code{data} and \code{methylation} must be given
+by its full name.}
+
+\item{outcomes}{Which column(s) of \code{data} the methylation is tested
+against - the phenotype side of the model. With several, each is tested
+in turn with the others entering as covariates (mutual adjustment). If
+your question runs the other way - these columns PREDICT the
+methylation - name them with \code{predictors =} instead and skip
+\code{frame_role} entirely.}
+
+\item{predictors}{The natural spelling when METHYLATION IS YOUR OUTCOME:
+which column(s) of \code{data} predict the methylation frame. Passing
+\code{predictors =} sets \code{frame_role = "outcome"} for you (an
+explicit \code{frame_role = "predictor"} alongside it is a
+contradiction and errors). Same columns as \code{outcome}, opposite
+reading; give exactly ONE of outcome / outcomes / predictors.}
 
 \item{covariates}{"contract" for the Alpha student contract, or a character
 vector. chip is added as a fixed factor automatically when present.}
 
-\item{random_effects}{column(s) defining exchangeable blocks (permutation
-blocks); default "cID".}
+\item{random_effects}{Your random-effect grouping factor(s), stated the
+way you think about them (lme4-style). ONE factor - \code{"cID"} for
+couples - defines the exchangeability blocks: rows of one group travel
+together under permutation. TWO factors and \code{dmsa_frame()} works
+out the structure itself and says so in lme4 notation: NESTED (e.g.
+couples on the same chip, \code{(1 | chip/cID)}) blocks on the nested
+pair exactly as before, with the coarse factor's variance component
+left to \code{chip =}; CROSSED (e.g. partners of one couple on
+DIFFERENT chips, \code{(1 | cID) + (1 | chip)}) routes the finest
+dependence factor to the blocks and the other into the \code{(1 | .)}
+random intercept - crossing them into one block would make every group
+a singleton, which is the error this replaces. Aliased factors are
+detected; three or more are refused (the engine fits one block
+structure and one intercept).}
 
 \item{chip}{how to handle the array/chip batch factor. \code{TRUE} (default)
 enters it as a fixed effect, using \code{chip_f} if present and otherwise
@@ -114,32 +229,83 @@ fixed factor, at one degree of freedom per chip beyond the first.
 right: the permutation null is computed under the same transform, so the
 random-intercept fit moves power, not type-I error.}
 
-\item{outcome_levels}{Optional length-2 character vector naming the two
-levels of a two-level outcome, e.g. \code{c("T1", "T4")} or
-\code{c("female", "male")}. Used only in the written report, so a
-sentence can say which level is which instead of falling back to
-\code{outcome = 0} / \code{outcome = 1}. \code{NULL} (default) uses
-that fallback. Purely cosmetic: no level name reaches the model, the
-permutation or the family-wise correction.}
+\item{outcome_levels}{Optional labels for the two levels of a two-level
+outcome, used only in the written report so a sentence can say
+"taking pills [1] ... than not taking pills [0]" instead of falling
+back to \code{outcome = 0} / \code{outcome = 1}. Either a length-2
+character vector - honoured when the frame has ONE outcome - or a
+named list with one such pair per outcome, e.g.
+\code{list(pills_past_T1 = c("not taking pills", "taking pills"))},
+which works for any number of outcomes. Each pair is safest given as
+a NAMED vector matched by coded value, e.g. \code{c("0" = "not
+taking pills", "1" = "taking pills")} - immune to flipping whatever
+the coding (1/2, 0/1, "a"/"b"); an unnamed pair is taken in
+sorted-value order (low, high), and a name that is not one of the
+variable's two actual levels is an immediate error naming them. \code{NULL} (default) uses the coded-value fallback.
+Purely cosmetic: no level name reaches the model, the permutation or
+the family-wise correction. Spell it the way you declared the
+variable: with \code{outcomes = } use this argument; with
+\code{predictors = } use \code{predictor_levels} - same meaning,
+your vocabulary.}
+
+\item{predictor_levels}{The same level labels, for a frame declared with
+\code{predictors = } (\code{frame_role = "outcome"}): someone who
+wrote \code{predictors = "pills_past_T1"} thinks of pills as a
+predictor, so the labels are asked for in those words. Exactly one of
+\code{predictor_levels}/\code{outcome_levels} may be given, and each
+requires its matching declaration.}
 
 \item{moderation, mod, mod2}{moderation switch and moderator column(s); see
 the layout note above.}
 
-\item{outcome_label, predictor_labels, mod_label, mod2_label}{Optional display
-labels used in figures and in the written report instead of the raw column
-names. Either one per column, in order, or a named vector keyed by column
-name. Purely cosmetic: no label reaches the model, the permutation or the
+\item{outcome_label, predictor_labels, covariate_labels, mod_label, mod2_label}{Optional display NAMES used in figures and the written report instead of
+raw column names, spelled the way you declared each variable:
+\code{predictor_labels} names the \code{predictors = } column(s),
+\code{outcome_label} the \code{outcomes = } column(s) (the two are the
+same column - give one, matching your declaration),
+\code{covariate_labels} the covariates, and \code{mod_label}/
+\code{mod2_label} are ONE name each for the moderator column(s) (a
+moderator's LEVEL labels go in \code{mod_levels}). Either one per
+column, in order, or a named vector keyed by column name. Purely
+cosmetic: no label reaches the model, the permutation or the
 family-wise correction.}
+
+\item{mod_levels}{Labels for the two LEVELS of a two-level moderator,
+used in the moderation figures and prose. Safest as a named vector
+matched by coded value - \code{mod_levels = c("1" = "Husband",
+"2" = "Wife")} - which cannot flip whatever the coding; an unnamed
+pair is taken in sorted-value order (low, high).}
 
 \item{type}{"linear", "non-linear" (linear/quadratic/threshold arms,
 ACAT-combined), or "exponential" (adds an exp arm).}
 
-\item{outcome_type}{"gaussian", "logistic", or "multinomial".}
+\item{outcome_type}{The declared family of each outcome: "gaussian",
+"logistic", or "multinomial". A single value applies to every outcome. With
+several outcomes of different kinds, name them -
+\code{outcome_type = c(epds = "gaussian", depressed = "logistic")} - and
+every outcome must be named. An unnamed vector of several values is
+refused: a family paired positionally with the wrong outcome is not
+visible anywhere in the output. The stored value is the bare string for a
+single-outcome frame and a vector named by outcome otherwise.}
 
-\item{frame_role}{"predictor" (outcome ~ frame + covariates) or "outcome"
-(named columns predict the methylation frame).}
+\item{frame_role}{Which way the SECONDARY models face. Most callers never
+need this argument: passing the phenotype columns as \code{predictors =}
+sets it for you. The main DMSA path is
+always \code{methylation ~ outcome + covariates}: a directional set
+statistic on methylation is what DMSA estimates, and no argument turns that
+around. \code{"predictor"} (default) faces the moderated model the same way
+as the shape scan, \code{outcome ~ tone score x moderator};
+\code{"outcome"} declares that the named columns predict the frame, giving
+\code{tone score ~ outcome x moderator}. Because the shape scan cannot be
+turned around, \code{frame_role = "outcome"} requires
+\code{type = "linear"}. The resolved orientation of every path is stored on
+the frame as \code{model_orientation} and printed.}
 
-\item{cpg_map}{"confidence" or "full"; see the note above.}
+\item{cpg_map}{"full" (default) or "confidence"; see the note above.
+"full" analyses every CpG-gene pair with a usable direction call.
+"confidence" is an opt-in sensitivity restricted to high-confidence
+calls (tier A or SMR S1); it is a strict subset of "full" and never
+redefines system, module or gene membership.}
 
 \item{B, alpha, seed, correction}{inference settings (correction is applied
 within level-local families only).}
@@ -149,13 +315,29 @@ within level-local families only).}
 \item{w_floor}{Numeric. Lower bound applied to reliability weights before normalisation, so a single poorly behaved probe cannot be driven to zero influence. Ignored when \code{weighting = "flat"}.
 records it; FALSE: strict errors instead.}
 
-\item{palette, plots, tables, summary, plot_type, table_type, outdir}{output
+\item{palette}{Colour palette for every figure the report draws. One of
+the \pkg{viridisLite} palettes - \code{"viridis"} (default; the
+colour-blind-safe standard), \code{"magma"}, \code{"plasma"},
+\code{"inferno"}, \code{"cividis"} (designed for deuteranopia),
+\code{"mako"}, \code{"rocket"}, or \code{"turbo"} (vivid, not
+colour-blind-safe - avoid for publication). All are perceptually
+uniform and print safely in greyscale except \code{"turbo"}. If
+\pkg{viridisLite} is not installed, any value falls back to base R's
+\code{hcl.colors(..., "viridis")}, so the figures always draw. The
+per-system accent colours of the overview panels come from a separate
+fixed scheme and are not affected.}
+
+\item{plots, tables, summary, plot_type, table_type, outdir}{output
 styling for \code{dmsa_report}.}
 
-\item{gene_models}{Draw real exon/intron structure under the probes in each
-locus panel. \code{TRUE} fetches each gene's model from Ensembl, which
-makes network calls, so it is off by default; you may also pass a table
-built once with \code{\link{dmsa_gene_model}} and reused for every gene.}
+\item{gene_models}{Draw real exon/intron structure (with the TSS) under
+the probes in each locus panel. The default \code{"auto"} fetches the
+model from Ensembl for NAMED genes only - a handful of small requests,
+announced in the report log - and degrades to the bare coordinate axis
+with a message when offline. \code{TRUE} forces the fetch,
+\code{FALSE} never goes to the network, and a table built once with
+\code{\link{dmsa_gene_model}} can be passed to stay offline with the
+exons still drawn.}
 
 \item{progress}{Show a 0-100% progress bar while \code{dmsa_report()} runs.
 Defaults to \code{interactive()}: a bar writes carriage returns, which make
@@ -192,6 +374,6 @@ d <- data.frame(out1 = rnorm(60), cov1 = rnorm(60),
                 cID = rep(1:30, each = 2))
 sig <- 0.5 * outer(d$out1, map$best_direction * (map$gene == "G1"))
 d[map$column] <- plogis(matrix(rnorm(60 * nrow(map)), 60) + sig)
-dmsa_frame(d, map = map, outcome = "out1", covariates = "cov1",
+dmsa_frame(d, map = map, outcomes = "out1", covariates = "cov1",
            random_effects = "cID", B = 99, outdir = tempfile("dmsa_ex"))
 }

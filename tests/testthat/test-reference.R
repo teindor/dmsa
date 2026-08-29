@@ -108,20 +108,27 @@ test_that("a reference polarity drives dmsa_align end to end", {
 })
 
 test_that("alpha_reference wraps the bundled tables and finds its anchors", {
-  expect_warning(r <- alpha_reference(), "never be used")
+  ## spec 5: the reference is now the FULL biological codebook, so every
+  ## curated polarity row has a gene-system pair to attach to. The old
+  ## "will never be used" warning was a symptom of the probe-coverage-derived
+  ## reference dropping genes the polarity table still described.
+  expect_silent(r <- alpha_reference())
   expect_s3_class(r, "dmsa_reference")
   expect_equal(r$anchor_method, "curated")
   expect_gt(nrow(r$systems), 400)
   expect_gt(nrow(r$polarity), 100)
   expect_gt(nrow(r$anchors), 10)
   expect_match(r$notes, "DRAFT")
+  ## no polarity row may be orphaned
+  expect_length(setdiff(paste(r$polarity$gene, r$polarity$system_id),
+                        paste(r$systems$gene, r$systems$system_id)), 0L)
 })
 
 test_that("alpha_reference accepts an added module layer", {
   mods <- data.frame(system_id = "2", gene = c("CRH", "NR3C1"),
                      module_id = c("H", "F"), module = c("hypothalamic", "feedback"),
                      stringsAsFactors = FALSE)
-  expect_warning(r <- alpha_reference(modules = mods), "never be used")
+  expect_silent(r <- alpha_reference(modules = mods))
   s <- r$systems
   expect_true(any(!is.na(s$module_id)))
   expect_equal(s$module_id[s$gene == "CRH" & s$system_id == "2"], "H")

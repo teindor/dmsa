@@ -130,8 +130,9 @@ dmsa_plot_genes <- function(genes, null_max = NULL, title = "", alpha = .05,
   g <- g[is.finite(g$z), , drop = FALSE]
   g <- g[order(g$z), , drop = FALSE]
   VC <- .dmsa_pal(5)
-  sel <- if (!is.null(g$selected)) as.logical(g$selected) else
-    if (!is.null(g$p_adj)) g$p_adj < alpha else rep(FALSE, nrow(g))
+  sel <- if (!is.null(g$selected)) as.logical(g$selected) %in% TRUE else
+    if (!is.null(g$p_adj)) is.finite(g$p_adj) & g$p_adj < alpha else
+      rep(FALSE, nrow(g))
   if (!is.null(file)) { grDevices::png(file, width, height, res = res)
     on.exit(grDevices::dev.off(), add = TRUE) }
   graphics::par(mar = c(4.4, 7.4, 3.6, 1.2), mgp = c(2.6, .6, 0))
@@ -284,19 +285,23 @@ dmsa_plot_probes <- function(probes, invert = c("+1", "-1", "none"),
     gs <- as.data.frame(gene_summary)
     gs <- gs[gs$gene %in% unique(p$gene), , drop = FALSE]
     if (nrow(gs)) {
-      yy <- .5 - extra / 2
       agree <- tapply(sign(p$shown), p$gene, function(v) max(table(v)) / length(v))
       lab <- paste0(gs$gene, ": pooled z = ", sprintf("%+.2f", gs$z),
                     if (!is.null(gs$p_adj)) sprintf(",  maxT p = %.4f", gs$p_adj) else "",
                     sprintf(",  %.0f%% of probes agree in sign",
-                            100 * agree[gs$gene[1]]))
+                            100 * agree[gs$gene]))
       graphics::abline(h = .5 - extra * .15, col = "grey88")
-      dx <- mean(p$shown[p$gene == gs$gene[1]])
-      graphics::points(dx, yy, pch = 18, cex = 2.2, col = VC[2])
-      ## label away from the diamond so the two never overlap
-      graphics::text(dx, yy, paste0(" ", lab[1], " "),
-                     pos = if (dx > mean(xr)) 2 else 4, cex = .66, font = 2,
-                     col = VC[2], xpd = NA)
+      ## one diamond PER summarised gene - a multi-gene panel used to draw
+      ## only the first gene's pooled result and silently drop the rest
+      for (gi in seq_len(nrow(gs))) {
+        yy <- .5 - extra / 2 - (gi - 1L) * max(.9, extra * .35)
+        dx <- mean(p$shown[p$gene == gs$gene[gi]])
+        graphics::points(dx, yy, pch = 18, cex = 2.2, col = VC[2])
+        ## label away from the diamond so the two never overlap
+        graphics::text(dx, yy, paste0(" ", lab[gi], " "),
+                       pos = if (dx > mean(xr)) 2 else 4, cex = .66, font = 2,
+                       col = VC[2], xpd = NA)
+      }
     }
   }
 

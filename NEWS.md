@@ -1,3 +1,530 @@
+# dmsa 0.99.9
+
+## The all-one-direction note tells the user where to check
+
+* **"Every one of N direction calls is -1" no longer distrusts
+  cpgdirection.** When the calls carry evidence tiers (resolved by
+  cpgdirection), an all-one-direction set is usually genuine curation:
+  the old warning is now an informational message that says so and names
+  exactly where to verify - `tables/analysis_set.csv` (columns
+  `direction`, `direction_tier`, `evidence`) and `frame$map`. Calls with
+  NO evidence tiers (a user-supplied map or bare `d` vector) keep an
+  actionable warning that names the check
+  (`table(map$best_direction)`). Either note is shown once per probe set
+  per session, not once per lens battery.
+
+## Binary moderator: one panel; leaner overview; stale frames
+
+* **A two-level moderator draws ONE panel.** The second panel is gone
+  entirely (a significant interaction means, by definition, that the two
+  slopes differ): each level's own slope and its significance now sit in
+  the legend of the single panel ("Husband [1]: b -1.507, p < .001"),
+  the caption states that the tested interaction IS the difference
+  between the slopes, and the device narrows so the panel keeps its
+  proportions.
+* **The overview figure carries only its title.** The explanatory
+  subtitle is removed; the visual codes (bold, shading, daggers) are
+  defined once in summary.md.
+* **Stale frame objects are detected and worked around.** A frame built
+  by an older dmsa installation inside a long R session carries stale
+  stored fields - the pills battery drew a linear display for a 0/1
+  outcome exactly this way. dmsa_report() now compares the frame's build
+  stamp with the running installation and says plainly to rebuild the
+  frame; independently, the moderation figure re-checks two-levelness on
+  the data itself, so the binary display appears even from a stale frame.
+* The empty brain-bridge line prints "none recorded" instead of
+  "ensemble percentiles NA-NA".
+
+## Moderation joins the report; Ensembl fetch repaired
+
+* **Moderation no longer replaces the main analysis.** `moderation = TRUE`
+  used to run ONLY the interaction battery - no system, module or gene
+  results, no overview or locus figures. Both batteries now run in one
+  report (the price is runtime: both permute).
+* **The gaussian gate applies only where it is true.** Moderation with
+  `frame_role = "outcome"` fits `S ~ outcome x moderator` - the TONE
+  SCORE is the response - so a two-level outcome on the right-hand side
+  is an ordinary group contrast and is no longer refused. The gate
+  remains for `frame_role = "predictor"`, where the outcome is the
+  response of a linear model.
+* **The moderation figure is binary-aware.** A two-level outcome gets a
+  LOGISTIC display: panel 1 draws fitted probability curves per moderator
+  level over the jittered 0/1 observations ("P(taking pills [1])"),
+  stated as a display of the same interaction - the tested statistic
+  stays the permutation-calibrated linear product. A two-level moderator
+  gets no Johnson-Neyman continuum (a JN band over sex = 1..2 sweeps
+  impossible values): panel 2 shows the two simple slopes with 95% CIs,
+  whose difference IS the tested interaction, with a quasi-separation
+  warning when the log-odds scale is unstable.
+* **Console survivors deduplicate**: a probe that also survives as its
+  gene's or module's only member prints once, tagged "same data at N
+  levels" instead of three near-identical lines.
+* **Ensembl fetch repaired**: lookup/symbol serves json/xml/jsonp ONLY -
+  the old request for text/x-gff3 was an unconditional HTTP 400 from
+  Ensembl on every machine, which surfaced the moment gene_models =
+  "auto" first exercised the path. The lookup now asks for JSON and
+  reads its four flat fields with no new dependency; the exon/CDS
+  feature call stays GFF3 (overlap/region supports it). Exon models
+  should now actually draw on connected machines.
+* `palette` is documented: the viridisLite palettes (viridis, magma,
+  plasma, inferno, cividis, mako, rocket, turbo) with colour-blindness
+  and greyscale notes.
+
+## Covariate/moderator overlap said out loud
+
+* **A column given both as a covariate and as a moderator is flagged
+  live.** With `moderation = TRUE` it is dropped from the covariates
+  (the moderated model already carries its main effect once) with a
+  console message and a corrections note saying how to undo it; with
+  `mod = ` given but `moderation = FALSE`, a live message states that NO
+  moderation is tested and the column stays a plain covariate - the
+  "moderators ignored" fact used to live only in the corrections table,
+  pages away from the user who typed `mod = "sex"` meaning to test it.
+
+## Labels that cannot lie, levels that cannot flip
+
+* **`predictor_labels` now names the `predictors = ` column** - the only
+  reading a human makes of it. It used to silently label the covariates
+  (a legacy of the old orientation vocabulary), which errored the PI's
+  own call with "1 label(s) for 6 column(s)". Covariate display names
+  have their own argument, `covariate_labels`; using `predictor_labels`
+  with `outcomes = ` errors and points to the right spelling.
+* **Level labels can be matched BY VALUE.** Every level-label pair -
+  `outcome_levels`, `predictor_levels`, and the new `mod_levels` for a
+  two-level moderator - is safest as a named vector:
+  `c("1" = "Husband", "2" = "Wife")`. Names are matched against the
+  variable's actual two levels whatever the coding (1/2, 0/1, "a"/"b"),
+  in any order, so a positional flip is impossible; a name that is not
+  one of the real levels errors immediately, naming them. Unnamed pairs
+  keep the documented sorted-value order (low, high).
+* **A two-level moderator gets a two-line slopes panel.** The quantile
+  ladder used to draw a third line at an impossible middle value
+  (sex = 1.5); a moderator with exactly two observed levels now draws
+  one line per level, labelled by `mod_levels` when declared. A length-2
+  `mod_label` (one display NAME, not level labels) errors and points to
+  `mod_levels` instead of silently keeping only the first entry.
+
+## Predictor_levels
+
+* **Level labels in the user's own vocabulary.** A frame declared with
+  `predictors = "pills_past_T1"` labels its levels with
+  `predictor_levels = list(pills_past_T1 = c("not taking pills", "taking
+  pills"))` - the user who thinks of pills as a predictor is never asked
+  to reach for an "outcome" argument. `outcome_levels` stays the spelling
+  for `outcomes = `; giving both is refused in plain words, and each
+  spelling requires its matching declaration so a mismatch is caught at
+  the call, not discovered in the report.
+
+## The family-corrected omnibus and its badge
+
+* **New: `p_omnibus_adj` - the ACAT omnibus, family-corrected.** The
+  omnibus already absorbs the cross-LENS multiplicity (ACAT is a valid
+  combination under arbitrary dependence; Liu & Xie 2020); this corrects
+  it across the FAMILY too, by permutation minP on the same stream with a
+  symmetric leave-one-out p convention on both sides. The result is an
+  exact family-wise p (measured FWER .050 in the undermining sims,
+  dmsa_patch/undermine_omnibus.R) that defends against BOTH
+  multiplicities and is most powerful precisely where all three lenses
+  agree - the signal class the union test is weakest for. The calibration
+  distribution rides along as attr "omnibus_null_min". Additive: nothing
+  previously reported changes value. (This corrects an earlier note that
+  a family-corrected omnibus was unusable at feasible B: the granularity
+  floor affects only ~3G/B of null draws, not all of them, and the sims
+  confirm exactness.)
+* **The OMNIBUS-CONFIRMED badge (double dagger).** A named unit whose
+  family-corrected omnibus clears alpha is marked alongside the union
+  badge: dagger = exact-confirmed (strongest single lens), double dagger
+  = omnibus-confirmed (all three lenses combined) - two exact
+  family-wise claims riding on top of the pre-registered naming, each
+  labelled by what it rests on. Gene table gains an "omnibus adj"
+  column; the Results template reports omnibus raw AND family-corrected
+  with their scopes in words; console print and the overview labels
+  carry the badge.
+* Undermining recorded: analytic corrections (Bonferroni/Holm) on the
+  ACAT omnibus are valid but ~5x conservative under the battery's lens
+  dependence and granularity-blind to single-lens signals; the
+  permutation calibration is exact and adaptive. On the pills battery:
+  PRLR family-corrected omnibus ~.005 and GREB1 ~.012 (both
+  omnibus-confirmed), while the analytic route gives .0315 / .0795.
+
+## Labels, precise omnibus wording, exons back by default
+
+* **Binary outcomes get real labels.** `outcome_levels` now also accepts a
+  named list - `list(pills_past_T1 = c("not taking pills", "taking
+  pills"))` - so every outcome of a multi-outcome frame can label its two
+  levels. The report's direction sentence becomes "Taking pills [1] was
+  associated with methylation consistent with a HIGHER expression tone of
+  GREB1, relative to not taking pills [0]" - declared label first, coded
+  value in brackets so the sentence is self-verifying against the data.
+  Two-level outcomes are now detected as binary whatever their storage
+  type (numeric, logical, factor, or character); a factor-coded 0/1
+  column used to fall through to the "Higher X was associated ..."
+  continuous wording.
+* **The omnibus says exactly what it defends against.** The Results
+  template now states, beside every ACAT omnibus value, that it is one
+  valid test combining the three lenses (the cross-LENS multiplicity is
+  absorbed by the combination) but is NOT corrected across the gene
+  family - and that the exact union p beside it is corrected across both.
+  A raw .0017 can no longer read as a family-level claim.
+* **Exon models are back by default.** `gene_models = "auto"` (the new
+  default) fetches the exon/TSS model from Ensembl for NAMED genes only -
+  a handful of small announced requests - and degrades to the true
+  coordinate axis with a clear message when offline. TRUE forces the
+  fetch, FALSE never touches the network, and a prebuilt
+  `dmsa_gene_model()` table still works fully offline.
+
+## Exact second-level calibration, measured error, the badge
+
+* **New: second-level Westfall-Young minP calibration of the any-lens
+  rule** (Westfall & Young 1993; Ge, Dudoit & Speed 2003), computed from
+  the same permutation stream at no extra permutation cost. Every
+  triangulation now returns `p_union_exact` - an EXACT family-wise p for
+  the claim "some lens carries this unit", adaptive to the measured lens
+  dependence (perfectly correlated lenses cost nothing extra; independent
+  ones the full threefold - "correction per what is needed") - plus
+  `attr(., "union_null_min")`, the calibration distribution itself.
+* **The run's own realized family-wise error is measured and stated.**
+  `fwer_realized` per family = the share of null draws whose best
+  adjusted p anywhere in the family clears alpha - the design-specific
+  number behind the MS's ".04-.12" disclosure. summary.md states it per
+  gene family; the Methods template cites the construction.
+* **The EXACT-CONFIRMED badge (two tiers, PI ruling).** Naming stays the
+  pre-registered any-lens rule; a named unit whose exact union p also
+  clears alpha is additionally marked exact-confirmed - dagger in the
+  gene table and overview figure, "EXACT-CONFIRMED" in the prose and
+  console. The printed honesty line beside every named unit is now the
+  exact union p (directly comparable to the lens adj it sits beside);
+  `p_unit_adj` remains computed and exposed in units.csv. Nothing
+  previously reported changes value.
+* Undermining recorded (dmsa_patch/undermine_calibrated.R): the exact
+  calibrated union's power matches the joint max in every regime (the
+  ratio arithmetic .05 x .05/FWER UNDER-corrects - measured threshold
+  .020 where the ratio predicts .029 - so the permutation quantile, not
+  the ratio, is the only defensible calibration), which is why it is a
+  badge and not the naming rule.
+
+## The rule carried through every output
+
+* **Every layer of every report follows the naming rule, and a named gene
+  always gets its plot.** The system-level summary line now leads with the
+  same naming statistic as every other level (best lens's family-adjusted
+  p, star = named; the ACAT value is labelled "omnibus raw" and the joint
+  union p rides along). The locus panel of a named gene is guaranteed: if
+  the full panel (gene model, genomic coordinates) fails to draw, the
+  report falls back to the bare, always-drawable panel instead of
+  silently skipping; summary.md points to each named gene's panel by file
+  name, and in the (now rare) case a panel could not be drawn at all,
+  summary.md says so beside the findings instead of leaving a hole.
+
+## The naming rule, re-ruled
+
+* **A finding is NAMED by the any-lens rule again - the manuscript's
+  pre-registered rule.** A gene (or module, or system) is named when any
+  single lens's family-adjusted p falls below alpha, with the carrying
+  lens reported; the realized family-wise error of this union rule is
+  disclosed (the MS benchmark measured .04-.12; ~.09 under the Alpha
+  battery's lens dependence) rather than exact. The 0.99.9 interim rule -
+  gating on the exact joint any-lens union test (`p_unit_adj`) - was
+  re-ruled by the PI after simulation showed every exact-alpha
+  alternative (joint max, continuous ACAT, Stouffer, hybrids) costs ~10
+  power points in every signal regime; the extra power of the any-lens
+  rule IS its disclosed inflation, and rank-p ACAT under maxT carries the
+  granularity floor the MS already documents. `p_unit` / `p_unit_adj`
+  remain computed, exposed in the units table, and printed beside every
+  named unit as the honesty line; they no longer gate. Simulation
+  scripts: `undermine_naming.R`, `undermine_naming2.R` (in the patch
+  archive).
+* **One statistic everywhere.** The overview figure's ordering, bolding
+  and near-threshold shading, the summary's gene-results table ordering
+  and bolding, the Results/Methods templates, and the console print are
+  all keyed to the same naming statistic (the best lens's family-adjusted
+  p). The gene table's raw ACAT column is now headed "omnibus (raw)" so
+  an uncorrected number cannot read as a verdict, and the Methods
+  template states the naming rule with its disclosed error rate.
+* **The probe-QC exclusion count is scoped to the frame.** The console
+  line and corrections note now lead with how many excluded CpGs map
+  into the systems being analysed, with the whole-file count as context
+  ("0 CpG(s) mapping into the analysed system(s) excluded ... (486
+  across the whole file)"), resolved by one extra flag-mode
+  `cpg_gene_pairs()` call over just the excluded CpGs; when their mapping
+  cannot be known, the note states the file-wide scope in words.
+  cpgdirection's own file-scoped message is muffled in favour of the
+  scoped one.
+
+## Report figures and the gene table
+
+* **Overview figures follow the figure rules (spec 29-38).** One panel per
+  SYSTEM, in that system's own accent colour, at most 40 units per page
+  with `_p2`, `_p3`, ... pagination (a real Alpha battery had put ~70
+  genes from 2 systems in one uncoloured 6000-px panel). Within a system,
+  units are ordered by the joint any-lens adjusted p; rows at
+  `p_unit_adj < 0.20` get a light background shade; survivors stay bold.
+  File names carry the system slug and page number only when needed.
+* **summary.md now states the gene results.** A `### Gene results` section
+  lists, per outcome x system, the top 10 genes by the joint test - CpGs
+  tested, concordance, direction, best lens, lens-adjusted, unit-adjusted
+  and omnibus p - with survivors in bold and a pointer to the full
+  `tables/units.csv`. A summary that jumped from "no survivors" to the
+  module table left the reader with no idea what the genes DID.
+* **Gene-significant, probe-silent loci are drawn and explained.** The
+  report now passes each probe's nominal p (from the same fit as the
+  panel's effects) into the locus figure, so CpGs above alpha are greyed;
+  when NO probe clears alpha on its own, the panel says so under its
+  title and states that the gene-level result pools small,
+  direction-consistent shifts across the CpGs. summary.md carries the
+  same explanation once, at the top of the gene results.
+* **New: `dmsa_save_analysis_set()`.** One row per CpG x gene pair that
+  actually entered the analysis - probe, gene, system, module, direction
+  call with tier and evidence, co-effect flag, hg38 coordinates when the
+  cascade covers the probe, and the frame's direction source, tissue and
+  reference - written for the supplement of a paper and for user
+  validation. Every report writes it automatically as
+  `tables/analysis_set.csv`; the pair ledger keeps being the superset
+  that also lists every pair NOT used and why.
+
+## Orientation spellings
+
+* **`outcomes =` and `predictors =` replace `outcome =`.** The phenotype
+  columns are now named `outcomes` (which column(s) of `data` the
+  methylation is tested against), or - when the question runs the other
+  way - `predictors`, which also sets `frame_role = "outcome"`
+  automatically, so the reversed orientation is one argument instead of
+  two; a contradicting explicit `frame_role = "predictor"` alongside it
+  errors in plain words. The former `outcome` argument is OUT of the
+  signature but still accepted for backward compatibility (it means
+  exactly `outcomes`), so no existing script breaks. Two side effects of
+  the compatibility slot: every argument after `data` and `methylation`
+  must be given by its full name (abbreviated argument names no longer
+  match - arguably a feature in analysis scripts), and an unknown argument
+  is an immediate error naming it.
+
+* **`random_effects` now speaks lme4.** State your grouping factors the way
+  you think about them. With TWO factors `dmsa_frame()` detects the
+  structure and announces it in lme4 notation: NESTED (couples on the same
+  chip, `(1 | chip/cID)`) keeps the existing block behaviour exactly, with
+  the coarse factor's variance component left to `chip =`; CROSSED
+  (partners on DIFFERENT chips, `(1 | cID) + (1 | chip)`) routes the
+  finest dependence factor to the exchangeability blocks and the other
+  into the `(1 | .)` random intercept - the case that used to stop the run
+  with an all-singleton block error. Aliased factors are detected; three
+  or more are refused; a conflicting explicit `chip =` or
+  `chip_effect = "none"` errors in plain words. This settles spec item 42
+  ("random_effects doesn't mean what labs think"): the name now means what
+  labs think.
+* The all-singleton exchangeability-block error now diagnoses itself: with
+  crossed block columns it names which column alone WOULD permute (e.g.
+  couples on different chips make `cID x chip_T1` all-singleton while `cID`
+  alone is fine) and points a chip/slide/plate/batch-named column at
+  `chip = `, where it enters as a random intercept.
+
+## Group selection
+
+* **New: CpG-set selection by name pattern.** Methylation files often carry
+  several biological groups in one table (in Alpha's child file,
+  `_maternal` and `_paternal` tag the parents' probes; the child's carry no
+  tag). `dmsa_frame()` gains `cpgs_include` / `cpgs_exclude` - fixed
+  substrings matched against CpG column NAMES, include first, then exclude -
+  so analysing the child is one line:
+  `cpgs_exclude = c("_maternal", "_paternal")`. Only CpG-site columns are
+  candidates (outcomes and covariates are never touched), the drop is
+  recorded in the corrections table, patterns that remove everything are a
+  hard error, and both the pair path and the bundled path honour the same
+  filter. The standalone helper `dmsa_cpg_columns(x, include=, exclude=)`
+  applies the identical rule anywhere a column vector is needed.
+
+## Engine review pass — PI-ruled fixes E1-E10
+
+Ten findings from the whole-package adversarial review were ruled on
+individually by the PI and fixed. These are the first changes to engine
+files in this release cycle; each was approved explicitly.
+
+* **E1 (fit.R)** A vestigial assignment inside the mixed-model loop
+  reassigned the focal-term index, so whenever lme4 dropped or reordered a
+  fixed effect, the permutation null pooled a DIFFERENT coefficient than the
+  observed statistic. Removed; in every run where term orders agreed (the
+  usual case) no number changes.
+* **E2 (report)** A unit is now NAMED a finding by the joint any-lens test
+  (`p_unit_adj` - the max over the three lens statistics put through the
+  permutation machinery as one object, so the any-lens rule itself carries
+  exact family-wise control). Per-lens survivors remain reported as a
+  labelled second tier ("lens-level survivors"). `selected` now keys on
+  `p_unit_adj`; prose, print and the how-to-report templates follow.
+* **E3 (triangulate.R)** In the single-engine modes (flat/reliability) the
+  cross-lens unit statistic compared raw incomparable scales, so the diffuse
+  lens could never drive the any-lens test. The three lenses are now
+  null-standardised INSIDE the unit statistic only; per-lens tests keep
+  their raw-statistic maxT (and its width advantage - the AVP anchor is
+  untouched), and the combined engine is unchanged. NOTE for the MS:
+  equation 5's second line still describes the earlier rank-p ACAT engine
+  fusion; the code uses a continuous standardised-mean fusion because rank
+  granularity floors family-wise p at ~family/(B+1).
+* **E4 (dmsa_align)** A user polarity table now MERGES with the bundled
+  curation, as the documentation always promised: user rows override
+  gene-for-gene, the bundled table fills the rest, and a message states the
+  arithmetic. It used to silently replace the whole table.
+* **E5 (dmsa_lfdr)** The pi0 estimator read the mass between the sample's
+  own quartiles - 0.5 by definition - so the EB arm always assumed ~no
+  signal. Replaced with robust Efron central matching (iteratively trimmed
+  null fit, mass counted in a fixed window). EB results are less
+  conservative and now respond to the data; the permutation engines are
+  untouched. A follow-up adversarial pass on the fix (six simulation fronts)
+  found one genuine anticonservative hole - a HEAVY-TAILED null is misread
+  as signal by any Gaussian two-group model (under a pure t5 null the
+  selection arm called false units in 80-100% of runs) - and added a
+  two-radius symmetric-tail-excess guard: both tails significantly heavier
+  than the fitted Gaussian triggers a warning and the documented NULL
+  fallback to the frequentist rule. With the guard: t5 null false-selection
+  0% at 1000 units (16% of runs select ~0.3 units at 200 - documented
+  residual), Gaussian null and one-sided signal unaffected (~3% fallback,
+  power intact), symmetric two-sided signal falls back conservatively to
+  the frequentist arm. The two-groups model's remaining assumptions
+  (minority signal; |z| ~ 2 largely invisible - both CONSERVATIVE failure
+  directions) are now stated in the help page.
+* **E6 (dmsa_omnibus)** The hand-rolled block shuffle scrambled values
+  across families whenever rows were not block-contiguous. It now uses the
+  same size-stratified whole-block swap as every other engine; p-values are
+  layout-invariant.
+* **E7 (dmsa_moderate)** The Johnson-Neyman region was always reported as
+  "significant OUTSIDE [l, u]"; when the quadratic opens upward (strong main
+  effect, weak interaction) the true region is BETWEEN the roots and is now
+  reported as such (plus "everywhere"/"nowhere" for the no-real-roots
+  cases). All simple-slope/JN ingredients now come from ONE fitted model
+  (the mixed model when it is the engine) instead of splicing lm and lmer
+  estimates.
+* **E8 (dmsa_mediate)** A custom cascade or cascade CSV path no longer
+  silently receives the bundled Alpha direction map; it is refused with the
+  two explicit options spelled out.
+* **E9 (dmsa_align / dmsa_scores / dmsa_triangulate)** `dmsa_align()` on a
+  probe vector now returns rows in the CALLER's order, and the consumers
+  verify the positional join on canonical CpG ids: an unambiguous scramble
+  of the same probes is repaired, an overlapping mismatch is a hard error,
+  and unrelated naming conventions keep the positional contract. A silent
+  multiplier-on-wrong-probe run is no longer possible.
+* **E10** minP + the combined engine is refused in `dmsa_change()` (it was
+  silently running maxT while recording "minP"); the minP branch uses one
+  p-value convention on both sides with NA-honest denominators; `pc1` no
+  longer returns silent all-NA on an all-zero-multiplier set; the
+  `dmsa_model(nulls=)` documentation now describes the actual TRUE/FALSE
+  contract; the RNG save/restore blocks now truly restore "no prior state";
+  a dead helper was removed; Zhou-manifest `*_beg` coordinates (BED,
+  0-based) are converted to the 1-based scale of everything drawn beside
+  them; and the moderated permutation in `dmsa_outcome()` now residualises
+  the product term on S, W AND the covariates (full Freedman-Lane), so the
+  observed and permuted regressors share one geometry.
+
+## Second pass, same day
+
+### The pair path is live (spec 1/3): `direction_source`
+
+* `dmsa_frame()` gains `direction_source = c("auto", "cpgdirection",
+  "bundled")`, `reference = "alpha"`, `tissue = "blood"` and
+  `replicate_policy = c("collapse_site", "keep_correlated")`. With
+  cpgdirection installed (the default `"auto"` finds it), the map the engine
+  consumes is built at run time from CpG x gene PAIRS:
+  measurements -> `cpg_gene_pairs()` discovery -> reference filter ->
+  pair ledger -> engine map. Without it, the bundled per-column snapshot is
+  used and the fallback is RECORDED in the corrections table. A user-supplied
+  `map` table forces the bundled source. The engine itself is unchanged:
+  only where its map comes from is new.
+* On the pair path the biological reference (`dmsa_reference`; `"alpha"` =
+  the 2026c codebook) defines membership; the reference never selects CpGs.
+  One CpG mapping to several genes enters as several pairs - including with
+  opposite directions - and technical replicate designs of one CpG are
+  averaged into one measurement under `collapse_site` (a missing value in a
+  replicate keeps the site visible to `missing_methylation`).
+* p_plus for each pair is resolved by `dmsa_align()`'s own documented
+  evidence ladder, applied once at map construction - not re-implemented.
+* `cpg_map` semantics are now pair-level (spec 13/14): "full" = every usable
+  pair; "confidence" = the strict subset resting on tier M (measured) or S1
+  (top SMR) evidence.
+
+### Coverage is itemised (spec 15/16/17)
+
+* New `dmsa_coverage(frame, level = c("system", "gene", "pairs"))`: reference
+  genes vs testable genes per system, the gene-level correction family size,
+  per-gene pair counts with abstention reasons, and the full pair ledger.
+* Every report on the pair path writes `tables/cpg_gene_pair_ledger.csv` -
+  every discovered pair, used or not, with its reason. A gene that lost all
+  of its evidence is visible there even when nothing else mentions it.
+* The frame stores `$pair_ledger` and `$measurements`; `print()` names the
+  direction source.
+* Spec 11: the legacy map builder no longer deduplicates by column (a no-op
+  for the bundled one-row-per-column snapshot; a user map may legitimately
+  carry pairs).
+
+## The 0.99.9 foundation
+
+### The biological reference and CpG mapping (the 2026c re-architecture)
+
+* **`alpha_reference()` now carries the full 2026c codebook: 1,282 genes in
+  187 modules across 30 systems** (previously 549 genes - only those with a
+  retained Alpha probe). Biological membership (system > module > gene) is now
+  independent of measurement availability; a gene no longer vanishes from its
+  system because no probe was retained for it. Counts are derived from the
+  bundled table, never asserted. `alpha_reference_check()` verifies the
+  invariants.
+* New CpG-to-gene mapping layer (`R/cpg_mapping.R`): measurement columns are
+  canonicalised, technical replicate designs of one CpG collapse under
+  `replicate_policy = "collapse_site"` (under this policy the measurement id
+  IS the canonical CpG id), one CpG legitimately maps to MANY genes (pairs are
+  preserved, never deduplicated), and direction comes from
+  `cpgdirection::cpg_gene_pairs()` resolved at call time - one row per
+  CpG x gene pair, pair-local direction, pair-specific abstention. A pair
+  ledger records why every pair was or was not used; cpgdirection's own
+  `pair_id` is preserved as `cpgd_pair_id` beside dmsa's minted key.
+* `cpg_map` default flips **"confidence" -> "full"**: every pair with a usable
+  direction call is analysed; "confidence" remains as an opt-in sensitivity.
+
+### Adjusted p-values are NOT comparable to earlier versions
+
+* The analysed universe (all user CpGs x discovered targets, rather than
+  Alpha-retained probes) and the `cpg_map` default flip both change the SIZE
+  of the level-local families that maxT/minP correct within. Adjusted
+  p-values therefore move between versions even where a gene's data did not
+  change. The correction machinery itself (maxT/minP, level-local families)
+  is unchanged.
+
+### Safety (hard errors where silence used to be)
+
+* `system = "oxytocin"` (a name passed to a TRUE/FALSE level switch) is now a
+  hard error pointing to `systems =`; all level and control switches validate
+  strictly; `systems = "all"` is explicit.
+* A requested exchangeability block that is missing or all-singleton is a hard
+  error even under `autofix = TRUE` (it used to silently become unrestricted
+  permutation).
+* Categorical covariates stay categorical: an explicit factor is honoured even
+  with numeric-looking levels; word-level factors no longer dissolve into NA.
+  Logical columns become 0/1 with a note (a logical OUTCOME used to dissolve
+  into all-NA).
+* Sample alignment (`sample_id`, `sample_align`): rows are matched by
+  identifier wherever identifiers exist - including NUMERIC id columns -
+  with reordering announced; a matrix whose rownames match no column of
+  `data` is an error, not a silent positional guess.
+* Missing methylation needs a declared policy (`missing_methylation =
+  "error"` (default) / `"drop_probes"` / `"common_complete_rows"`); a probe
+  can no longer be silently deleted by one missing value. The methylation
+  scale is declared (`methylation_scale = "auto"/"beta"/"M"`); declared-beta
+  values outside [0, 1] are an error, never clamped.
+* The outcome family is per outcome (`outcome_type` accepts a named vector);
+  a binary second outcome no longer flips the family of a continuous first
+  one. Multinomial is refused with the outcome named.
+* `frame_role` is validated for consistency with the shape scan and the
+  resolved model orientation of every path is stored and printed.
+* `dmsa_report(overwrite = FALSE)` refuses to overwrite an existing report -
+  including a summary-only one.
+* The system level forwards the chip random intercept exactly as the finer
+  levels always did.
+
+### Report
+
+* Spec 27: per-lens survivor flags (`selected_coherence`, `selected_composite`,
+  `selected_diffuse`, `n_lenses_hit`, `any_lens_hit`) and the joint-statistic
+  `p_unit` / `p_unit_adj` are carried in the units table. The headline
+  `selected` flag remains any-lens survival.
+* Many small report fixes: multi-outcome level labels, PDF locus panels,
+  NA-safe shape printing, the run's alpha used in print, figures recorded
+  only when actually written.
+
 # dmsa 0.99.8
 
 * Bioconductor pre-submission polish; no behaviour changes. The R dependency

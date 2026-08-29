@@ -128,7 +128,17 @@ print.dmsa_reference <- function(x, ...) {
   invisible(x)
 }
 
-#' The bundled Project Alpha tables as a reference bundle
+#' The bundled Project Alpha biological reference
+#'
+#' Reads the audited 2026c gene codebook that ships with the package and
+#' returns it as a \code{\link{dmsa_reference}}: one row per gene within its
+#' system and module, with the curated gene-to-system polarity attached.
+#'
+#' The reference is BIOLOGICAL - it defines \code{system > module > gene} and
+#' stops there. Which CpGs exist is a property of the methylation data a user
+#' supplies, not of the biology, so a gene with no probe in any particular
+#' cohort still belongs to its system here. Genes with no curated polarity are
+#' left UNRESOLVED; they are never silently treated as \code{+1}.
 #'
 #' @param modules Optional data.frame with \code{system_id}, \code{gene},
 #'   \code{module_id}, \code{module} to add a module layer (e.g. the HPA
@@ -141,23 +151,58 @@ print.dmsa_reference <- function(x, ...) {
 #' head(dmsa_polarity_for(ref, "2"), 4)
 #' @export
 alpha_reference <- function(modules = NULL) {
-  sysd <- alpha_gene_systems()
+  ## spec 2 + 5: the reference is BIOLOGICAL - system > module > gene, and
+  ## nothing below gene. It is read from the audited 2026c gene codebook, NOT
+  ## from alpha_gene_systems(), which is derived from retained probe coverage
+  ## (n_probes / n_kept / usability) and therefore drops any gene this cohort
+  ## happened to have no usable probe for. Building biology from one array's
+  ## coverage silently redefines the biology; the codebook keeps all genes,
+  ## including those with zero retained Alpha probes, so another lab supplying
+  ## a CpG for such a gene can analyse it.
+  p <- system.file("extdata", "alpha_reference_2026c.csv.gz", package = "dmsa")
+  if (nzchar(p)) {
+    s <- utils::read.csv(gzfile(p), stringsAsFactors = FALSE)
+    for (v in c("system_id", "module_id", "gene")) s[[v]] <- as.character(s[[v]])
+    s <- s[, c("gene", "system_id", "system", "module_id", "module")]
+  } else {
+    ## fallback for an install without the codebook resource
+    sysd <- alpha_gene_systems()
+    s <- data.frame(gene = sysd$gene, system_id = as.character(sysd$system_id),
+                    system = sysd$system, stringsAsFactors = FALSE)
+  }
   pol <- alpha_polarity()
-  s <- data.frame(gene = sysd$gene, system_id = as.character(sysd$system_id),
-                  system = sysd$system, stringsAsFactors = FALSE)
   if (!is.null(modules)) {
+    ## a user-supplied module layer OVERRIDES the codebook's for the genes it
+    ## names, so an alternative partition (e.g. an H/P/A/negative-feedback
+    ## split) can still be declared
     modules <- as.data.frame(modules, stringsAsFactors = FALSE)
     modules$system_id <- as.character(modules$system_id)
-    s <- merge(s, modules[c("gene", "system_id", "module_id", "module")],
-               by = c("gene", "system_id"), all.x = TRUE)
+    modules$module_id <- as.character(modules$module_id)
+    ## override PER GENE: genes the user table does not name keep the
+    ## codebook's module. Deleting the whole layer first silently stripped
+    ## ~1,250 unnamed genes of their modules whenever a user re-partitioned
+    ## one system.
+    if (anyDuplicated(modules[c("gene", "system_id")]))
+      stop("`modules` lists the same gene twice within one system; a gene ",
+           "belongs to exactly one module of a system.", call. = FALSE)
+    i <- match(paste(s$gene, s$system_id),
+               paste(modules$gene, modules$system_id))
+    hit <- !is.na(i)
+    s$module_id[hit] <- modules$module_id[i[hit]]
+    s$module[hit] <- modules$module[i[hit]]
   }
   p <- data.frame(gene = pol$gene, system_id = as.character(pol$system_id),
                   w_g = pol$w_g, role = pol$role, confidence = pol$confidence,
                   stringsAsFactors = FALSE)
-  a <- p[p$w_g == 1 & !is.na(p$role) & p$role == "driver", c("system_id", "gene")]
-  dmsa_reference(s, p, a, anchor_method = "curated", name = "Project Alpha 2026",
-                 version = "draft polarity",
-                 notes = "polarity is a DRAFT pending per-gene citations")
+  a <- p[!is.na(p$w_g) & p$w_g == 1 & !is.na(p$role) & p$role == "driver",
+         c("system_id", "gene")]
+  dmsa_reference(s, p, a, anchor_method = "curated",
+                 name = "Project Alpha (2026c, biological)", version = "2026c",
+                 notes = paste("biological reference: system > module > gene.",
+                               "Genes with no curated polarity are UNRESOLVED",
+                               "(w_g absent), never treated as +1.",
+                               "Polarity remains a DRAFT pending per-gene",
+                               "citations."))
 }
 
 #' Build a cascade tree for a set of probes from a reference bundle
@@ -195,9 +240,11 @@ dmsa_tree <- function(reference, genes, system_id = NULL, levels = NULL) {
   if (is.null(levels)) levels <- if (has_mod) c("system", "module") else "system"
   genes <- as.character(genes)
   key <- s[!duplicated(s$gene), , drop = FALSE]
-  if (is.null(system_id) && anyDuplicated(s$gene))
-    warning("some genes belong to several systems; supply system_id to avoid ",
-            "silently keeping only the first")
+  if (anyDuplicated(s$gene))
+    warning(if (is.null(system_id))
+              "some genes belong to several systems; supply system_id to avoid silently keeping only the first"
+            else
+              "some genes appear in several modules of this system; keeping each gene's first module")
   i <- match(genes, key$gene)
   out <- data.frame(row.names = seq_along(genes))
   if ("system" %in% levels) out$system <- key$system_id[i]
@@ -255,11 +302,20 @@ dmsa_reference_read <- function(dir, anchor_method = "user") {
   f <- function(x) file.path(dir, x)
   if (!file.exists(f("systems.csv")))
     stop("no systems.csv in ", dir, call. = FALSE)
-  s <- utils::read.csv(f("systems.csv"), stringsAsFactors = FALSE)
-  p <- if (file.exists(f("polarity.csv")))
-    utils::read.csv(f("polarity.csv"), stringsAsFactors = FALSE) else NULL
-  a <- if (file.exists(f("anchors.csv")))
-    utils::read.csv(f("anchors.csv"), stringsAsFactors = FALSE) else NULL
+  ## id columns are read as character ALWAYS: parsed as numeric, module ids
+  ## "2.10" and "2.1" become the same module (the cascade reader documents the
+  ## same rule; these readers must obey it too).
+  .rd <- function(fp) {
+    hd <- names(utils::read.csv(fp, nrows = 1))
+    idc <- intersect(c("system_id", "module_id"), hd)
+    utils::read.csv(fp, stringsAsFactors = FALSE,
+                    colClasses = if (length(idc))
+                      stats::setNames(rep("character", length(idc)), idc)
+                    else NA)
+  }
+  s <- .rd(f("systems.csv"))
+  p <- if (file.exists(f("polarity.csv"))) .rd(f("polarity.csv")) else NULL
+  a <- if (file.exists(f("anchors.csv"))) .rd(f("anchors.csv")) else NULL
   meta <- list(name = basename(dir), version = NA_character_, notes = NULL,
                anchor_method = anchor_method)
   if (file.exists(f("manifest.dcf"))) {
@@ -268,4 +324,70 @@ dmsa_reference_read <- function(dir, anchor_method = "user") {
   }
   dmsa_reference(s, p, a, anchor_method = meta$anchor_method,
                  name = meta$name, version = meta$version, notes = meta$notes)
+}
+
+## ---------------------------------------------------------------------------
+## THE BUNDLED ALPHA BIOLOGICAL REFERENCE  (spec sections 2, 5)
+##
+## system > module > gene, and NOTHING below gene. Which CpGs exist is a
+## property of the user's methylation data, not of the biology, so the
+## biological reference carries no probe column and no probe-derived filter.
+##
+## This matters because the previous Alpha resources were built from RETAINED
+## PROBE COVERAGE: a gene Project Alpha happened to have no usable probe for
+## simply vanished from its system, which silently redefined the biology to
+## match one cohort's array. The reference below is regenerated from the
+## audited 2026c gene codebook instead, so all 1,282 genes remain selectable -
+## including the 48 with zero retained Alpha probes. If another lab supplies a
+## CpG mapping to one of those genes, DMSA can analyse it.
+##
+## Integrity is checked by DERIVING the counts from the shipped file rather
+## than asserting literals, so a future codebook revision cannot silently
+## disagree with a hard-coded number (2026c holds 187 modules, not the 188 an
+## earlier draft assumed).
+## ---------------------------------------------------------------------------
+
+#' Integrity of the bundled Alpha biological reference
+#'
+#' Derives the system, module and gene counts from the shipped file and checks
+#' the reference is well formed: every gene in exactly one system and module,
+#' no probe-derived filtering, and polarity either curated or explicitly
+#' unresolved. Counts are DERIVED, never asserted against literals.
+#'
+#' @param verbose Print the report? Default TRUE.
+#' @return Invisibly, a list with the derived counts and the check results.
+#' @examples
+#' alpha_reference_check(verbose = FALSE)$counts
+#' @export
+alpha_reference_check <- function(verbose = TRUE) {
+  ref <- alpha_reference()
+  s <- ref$systems
+  counts <- c(systems = length(unique(s$system_id)),
+              modules = length(unique(stats::na.omit(s$module_id))),
+              genes   = length(unique(s$gene)),
+              rows    = nrow(s))
+  chk <- list()
+  chk[["one row per gene"]] <- counts[["rows"]] == counts[["genes"]]
+  chk[["every gene has a system"]] <- !any(is.na(s$system_id))
+  chk[["every gene has a module"]] <- !any(is.na(s$module_id))
+  chk[["gene in exactly one system"]] <-
+    max(tapply(s$system_id, s$gene, function(z) length(unique(z)))) == 1L
+  chk[["gene in exactly one module"]] <-
+    max(tapply(s$module_id, s$gene, function(z) length(unique(z)))) == 1L
+  chk[["no probe/CpG column"]] <-
+    !any(c("cpg", "probe", "probe_id", "column") %in% names(s))
+  npol <- if (is.null(ref$polarity)) 0L else
+    sum(ref$systems$gene %in% ref$polarity$gene)
+  if (verbose) {
+    cat(sprintf("Alpha biological reference (%s)\n", ref$version))
+    cat(sprintf("  %d systems | %d modules | %d genes | %d rows\n",
+                counts[["systems"]], counts[["modules"]], counts[["genes"]],
+                counts[["rows"]]))
+    for (nm in names(chk))
+      cat(sprintf("  [%s] %s\n", if (chk[[nm]]) "ok" else "FAIL", nm))
+    cat(sprintf("  polarity: %d of %d genes curated, %d unresolved (NA, never +1)\n",
+                npol, counts[["genes"]], counts[["genes"]] - npol))
+  }
+  invisible(list(counts = counts, checks = chk, n_polarity = npol,
+                 ok = all(unlist(chk))))
 }

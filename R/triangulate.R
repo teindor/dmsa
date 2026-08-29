@@ -81,6 +81,22 @@
 #'   so it moves power, not type-I error.
 #' @return data.frame, one row per unit: the raw and family-adjusted p under
 #'   each lens, the ACAT omnibus, the direction, and how many probes agreed.
+#'   \code{p_union_exact} is the second-level Westfall-Young minP calibration
+#'   of the any-lens rule: an EXACT family-wise p for the claim "some lens
+#'   carries this unit", computed by ranking the unit's smallest per-lens
+#'   family-adjusted p against the null distribution of the family-wide best
+#'   adjusted p (one value per permutation draw, min over units and lenses;
+#'   returned as \code{attr(., "union_null_min")}). It adapts to the measured
+#'   lens dependence - perfectly correlated lenses cost nothing extra,
+#'   independent ones the full threefold - and \code{mean(union_null_min <
+#'   alpha)} is the realized family-wise error of naming at the per-lens
+#'   adjusted-p threshold \code{alpha}. References: Westfall & Young (1993);
+#'   Ge, Dudoit & Speed (2003). \code{p_omnibus_adj} family-corrects the
+#'   ACAT omnibus the same way (permutation minP over each draw's per-unit
+#'   omnibus, \code{attr(., "omnibus_null_min")}): an exact family-wise p
+#'   that defends against BOTH multiplicities - the cross-lens combination
+#'   is absorbed by ACAT (Liu & Xie 2020), the cross-unit search by the
+#'   calibration - and is most powerful when all three lenses agree.
 #' @examples
 #' set.seed(1)
 #' n <- 100
@@ -113,7 +129,11 @@ dmsa_triangulate <- function(M, data, rhs, term, units, alignment, block = NULL,
     .old_seed <- if (exists(".Random.seed", envir = globalenv()))
       get(".Random.seed", envir = globalenv()) else NULL
     on.exit(if (!is.null(.old_seed))
-      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+      assign(".Random.seed", .old_seed, envir = globalenv())
+      else if (exists(".Random.seed", envir = globalenv()))
+        ## E10: a true restore of "no prior RNG state" - otherwise a fresh
+        ## session leaves deterministically seeded mid-stream of `seed`
+        rm(".Random.seed", envir = globalenv()), add = TRUE)
     set.seed(seed)
   }
   M <- as.matrix(M); data <- as.data.frame(data)
@@ -147,6 +167,11 @@ dmsa_triangulate <- function(M, data, rhs, term, units, alignment, block = NULL,
   if (length(units) != ncol(M) || nrow(al) != ncol(M))
     stop("units, alignment and M must describe the same probes in order",
          call. = FALSE)
+  ## E9: same positional-join guard as dmsa_scores()
+  if (!is.null(al$probe)) {
+    .ord <- .dmsa_align_order(colnames(M), al$probe)
+    if (is.numeric(.ord)) al <- al[.ord, , drop = FALSE]
+  }
   if (!is.null(winsor)) M <- apply(M, 2, function(y) {
     md <- stats::median(y, na.rm = TRUE); s <- stats::mad(y, na.rm = TRUE)
     if (!is.finite(s) || s <= 0) return(y)
@@ -258,9 +283,14 @@ dmsa_triangulate <- function(M, data, rhs, term, units, alignment, block = NULL,
       E[[e]]$C_n[b, ] <- lensC_w(Scp, mw)
       E[[e]]$B_n[b, ] <- lensB_w(ypv, Sc_lists[[e]]) }
   }
-  ## fuse engines per lens. Single engine -> its own stat; combined -> the
-  ## Cauchy (ACAT) fusion of the two engines' rank-p's, a valid statistic with
-  ## its own permutation null, so maxT over units is an exact joint-null FWER.
+  ## fuse engines per lens. Single engine -> its own RAW statistic (see the
+  ## width-advantage note inside fuse()); combined -> the MEAN of the two
+  ## engines' null-standardised statistics - a valid statistic with its own
+  ## permutation null, so maxT over units is an exact joint-null FWER.
+  ## (The manuscript's equation 5 second line describes an earlier rank-p
+  ## ACAT fusion; it was replaced because rank granularity 1/(B+1) floors
+  ## the family-wise p at ~family/(B+1) - see the note below. MS text to be
+  ## updated by the PI.)
   ## ---- continuous common scale ------------------------------------------
   ## Each lens/engine statistic is standardised by ITS OWN permutation null
   ## (robust centre/scale). This is continuous, so - unlike a rank-p scale,
@@ -276,7 +306,6 @@ dmsa_triangulate <- function(M, data, rhs, term, units, alignment, block = NULL,
       sdv[!is.finite(sdv) | sdv <= 0] <- 1; scl[bad] <- sdv }
     list(obs = (obs - ctr) / scl,
          nul = sweep(sweep(nul, 2, ctr, "-"), 2, scl, "/")) }
-  cauchy <- function(p) tan((0.5 - pmin(pmax(p, 1e-12), 1 - 1e-12)) * pi)
   fuse <- function(lens) {
     ob <- paste0(lens, "_obs"); nu <- paste0(lens, "_n")
     ## ONE ENGINE: use the raw statistic. Standardising each unit by its own
@@ -305,35 +334,134 @@ dmsa_triangulate <- function(M, data, rhs, term, units, alignment, block = NULL,
   padj <- function(obs, nul) {
     p <- (1 + colSums(sweep(nul, 2, obs, ">="), na.rm = TRUE)) /
       (colSums(is.finite(nul)) + 1)
+    ## `bst` is this lens's SECOND-LEVEL ingredient (PI-approved 2026-08-29):
+    ## for each permutation draw, the family-best adjusted p that draw would
+    ## have received - i.e. the same min-over-units transform the observed
+    ## data gets. (For both corrections the family minimum of the step-down
+    ## adjusted p's equals the best unit's single-step value, so this B-vector
+    ## is exact for the family-min statistic.) The min of `bst` across the
+    ## three lenses is one draw of the null "best adjusted p anywhere in the
+    ## family, under any lens" - the calibration distribution of the
+    ## second-level Westfall-Young minP (Westfall & Young 1993; Ge, Dudoit &
+    ## Speed 2003).
+    bst <- rep(NA_real_, nrow(nul))
     if (correction == "maxT") {
       mx <- apply(nul, 1, max, na.rm = TRUE)
+      mx[!is.finite(mx)] <- NA_real_
       pa <- vapply(obs, function(o) (1 + sum(mx >= o, na.rm = TRUE)) /
                      (sum(is.finite(mx)) + 1), numeric(1))
+      smx <- sort(mx[is.finite(mx)]); nf <- length(smx)
+      if (nf) bst <- (1 + nf -
+                        findInterval(mx, smx, left.open = TRUE)) / (nf + 1)
     } else {
-      PNl <- apply(nul, 2, function(v)
-        data.table::frank(-v, ties.method = "max", na.last = "keep") / B)
+      ## E10 (PI-approved): observed p above uses the (1+count)/(B+1)
+      ## convention; the null p's compared against it must use the SAME
+      ## convention, with the denominator counting only finite draws (frank
+      ## used to divide by the full B even when a column carried NAs, which
+      ## understated null p's and made p_adj conservative for the family)
+      PNl <- apply(nul, 2, function(v) {
+        nf <- sum(is.finite(v))
+        (data.table::frank(-v, ties.method = "max", na.last = "keep") + 1) /
+          (nf + 1)
+      })
       mn <- apply(PNl, 1, min, na.rm = TRUE)
+      mn[!is.finite(mn)] <- NA_real_
       pa <- vapply(p, function(q) (1 + sum(mn <= q, na.rm = TRUE)) /
                      (sum(is.finite(mn)) + 1), numeric(1))
+      smn <- sort(mn[is.finite(mn)]); nf <- length(smn)
+      if (nf) bst <- (1 + findInterval(mn, smn)) / (nf + 1)
     }
     o <- order(p); pa[o] <- cummax(pa[o])
-    list(p = p, p_adj = pa)
+    list(p = p, p_adj = pa, bst = bst)
   }
   PA <- padj(A_obs, A_n); PB <- padj(B_obs, B_n); PC <- padj(C_obs, C_n)
+  ## ---- second-level Westfall-Young minP over the three lenses ------------
+  ## (PI-approved 2026-08-29.) The any-lens naming rule takes the MIN over
+  ## the three per-lens family-adjusted p's; this calibrates that minimum
+  ## exactly, from the same permutation stream: Mb[b] = the smallest adjusted
+  ## p that null draw b earns anywhere in the family under any lens.
+  ## p_union_exact per unit = share of null draws whose family-wide best is
+  ## at or below the unit's own min adjusted p - an EXACT family-wise p for
+  ## the union claim, adaptive to the measured lens dependence (perfectly
+  ## correlated lenses cost nothing; independent ones the full 3x). The
+  ## per-lens adjusted p's and every previously reported number are
+  ## untouched; this is an additional, additive quantity.
+  Mb <- pmin(PA$bst, PB$bst, PC$bst, na.rm = TRUE)
+  Mb[!is.finite(Mb)] <- NA_real_
+  .obsmin <- pmin(PA$p_adj, PB$p_adj, PC$p_adj, na.rm = TRUE)
+  .nfM <- sum(is.finite(Mb))
+  p_union <- vapply(.obsmin, function(q)
+    if (!is.finite(q) || !.nfM) NA_real_ else
+      (1 + sum(Mb <= q, na.rm = TRUE)) / (.nfM + 1), numeric(1))
+  .ou <- order(.obsmin, na.last = NA)
+  if (length(.ou)) p_union[.ou] <- cummax(p_union[.ou])
   ## ---- unit-level test on ONE joint null across lenses (and engines) -----
   ## max over the three standardised lens statistics per unit, then maxT over
   ## units: a single family-wise rule valid across lenses AND units. The
   ## per-lens adjusted p-values above correct across units only, so taking
   ## their minimum is NOT family-wise controlled (it inflates roughly
   ## threefold); p_unit_adj is the rule to use for naming a unit.
-  Uobs <- pmax(A_obs, B_obs, C_obs, na.rm = TRUE)
-  Unul <- pmax(A_n, B_n, C_n, na.rm = TRUE)
+  ## E3 fix (2026-08-29, PI-approved): the cross-lens max needs the three
+  ## lenses on ONE scale. The combined engine's lens statistics are already
+  ## null-standardised; the single-engine statistics are raw and
+  ## incomparable (|z|- and |t|-like tails ~3+ against a variance-ratio near
+  ## 1), so the diffuse lens could never drive the any-lens test - exactly
+  ## the signal class it exists to catch. Standardising here touches ONLY
+  ## the unit-level statistic: the per-lens tests above keep their raw maxT
+  ## and its width advantage (the AVP .0120 anchor is untouched).
+  if (length(engines) == 1L) {
+    .ZA <- zstd(A_obs, A_n); .ZB <- zstd(B_obs, B_n); .ZC <- zstd(C_obs, C_n)
+    Uobs <- pmax(.ZA$obs, .ZB$obs, .ZC$obs, na.rm = TRUE)
+    Unul <- pmax(.ZA$nul, .ZB$nul, .ZC$nul, na.rm = TRUE)
+  } else {
+    Uobs <- pmax(A_obs, B_obs, C_obs, na.rm = TRUE)
+    Unul <- pmax(A_n, B_n, C_n, na.rm = TRUE)
+  }
   PU_ <- padj(Uobs, Unul)
   acat1 <- function(v) { v <- v[is.finite(v)]; if (!length(v)) return(NA_real_)
     q <- pmin(pmax(v, 1e-15), 1 - 1e-15)
     0.5 - atan(mean(tan((0.5 - q) * pi))) / pi }
   omni <- vapply(seq_along(ug), function(k)
     acat1(c(PA$p[k], PB$p[k], PC$p[k])), numeric(1))
+  ## ---- family-corrected omnibus (PI-approved 2026-08-29) -----------------
+  ## The ACAT omnibus already absorbs the cross-LENS multiplicity (Liu & Xie
+  ## 2020: valid combination under arbitrary dependence); this corrects it
+  ## across the FAMILY too, by permutation minP on the same stream: each
+  ## null draw gets its own per-unit omnibus (ACAT of that draw's
+  ## leave-one-out rank p's - the same (1+count)/(B+1) convention the
+  ## observed p uses, so neither side is favoured), the family minimum per
+  ## draw is the calibration distribution, and p_omnibus_adj ranks the
+  ## observed omnibus against it. Exact family-wise error (measured .050 in
+  ## the undermining sims, dmsa_patch/undermine_omnibus.R); powerful
+  ## precisely where all lenses agree, which is what the omnibus is FOR.
+  ## Additive: nothing previously reported changes value.
+  .On <- {
+    .pn <- function(nl) {                       # B x U -> leave-one-out p's
+      apply(nl, 2, function(v) {
+        nf <- sum(is.finite(v))
+        (1 + nf - rank(v, ties.method = "min", na.last = "keep")) / (nf + 1)
+      })
+    }
+    .pA <- .pn(A_n); .pB <- .pn(B_n); .pC <- .pn(C_n)
+    q <- function(m) pmin(pmax(m, 1e-15), 1 - 1e-15)
+    ## mean over the AVAILABLE lenses, exactly as acat1() does for the
+    ## observed omnibus, so a unit with a missing lens is treated the same
+    ## way on both sides
+    .t1 <- tan((0.5 - q(.pA)) * pi); .t2 <- tan((0.5 - q(.pB)) * pi)
+    .t3 <- tan((0.5 - q(.pC)) * pi)
+    .k <- (!is.na(.t1)) + (!is.na(.t2)) + (!is.na(.t3))
+    .z <- function(m) { m[is.na(m)] <- 0; m }
+    Tn <- (.z(.t1) + .z(.t2) + .z(.t3)) / ifelse(.k > 0, .k, NA)
+    0.5 - atan(Tn) / pi                         # B x U null omnibus p's
+  }
+  Mo_ <- apply(.On, 1, min, na.rm = TRUE)
+  Mo_[!is.finite(Mo_)] <- NA_real_
+  .nfO <- sum(is.finite(Mo_))
+  omni_adj <- vapply(omni, function(x)
+    if (!is.finite(x) || !.nfO) NA_real_ else
+      (1 + sum(Mo_ <= x, na.rm = TRUE)) / (.nfO + 1), numeric(1))
+  .oo <- order(omni, na.last = NA)
+  if (length(.oo)) omni_adj[.oo] <- cummax(omni_adj[.oo])
   dir <- vapply(gi, function(j) {
     w <- mlt[j]; if (all(w == 0)) return(NA_real_)
     sign(sum(w * L$b[j] / L$se[j]^2)) }, numeric(1))
@@ -348,7 +476,9 @@ dmsa_triangulate <- function(M, data, rhs, term, units, alignment, block = NULL,
     p_composite = PB$p, p_composite_adj = PB$p_adj,
     p_diffuse = PC$p, p_diffuse_adj = PC$p_adj,
     p_unit = PU_$p, p_unit_adj = PU_$p_adj,
-    p_omnibus = omni, stringsAsFactors = FALSE)
+    p_union_exact = p_union,
+    p_omnibus = omni, p_omnibus_adj = omni_adj, stringsAsFactors = FALSE)
+  attr(out, "union_null_min") <- Mb
   out$n_lenses_05 <- rowSums(cbind(out$p_coherence, out$p_composite,
                                    out$p_diffuse) < .05, na.rm = TRUE)
   ## units with NO usable direction-called probe are UNTESTABLE: report NA,
@@ -360,13 +490,19 @@ dmsa_triangulate <- function(M, data, rhs, term, units, alignment, block = NULL,
   if (any(unt)) {
     for (pc in c("p_coherence", "p_coherence_adj", "p_composite",
                  "p_composite_adj", "p_diffuse", "p_diffuse_adj",
-                 "p_unit", "p_unit_adj", "p_omnibus"))
+                 "p_unit", "p_unit_adj", "p_union_exact", "p_omnibus",
+                 "p_omnibus_adj"))
       out[[pc]][unt] <- NA_real_
     out$n_lenses_05[unt] <- NA_integer_
   }
   rownames(out) <- NULL
+  ## the reorder is a data.frame subset, which drops custom attributes -
+  ## re-attach them after it so union_null_min reaches the caller
+  out <- out[order(out$p_omnibus), ]
   attr(out, "family_size") <- length(ug)
   attr(out, "correction") <- correction
   attr(out, "weighting") <- weighting
-  out[order(out$p_omnibus), ]
+  attr(out, "union_null_min") <- Mb
+  attr(out, "omnibus_null_min") <- Mo_
+  out
 }

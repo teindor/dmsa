@@ -75,6 +75,22 @@ so it moves power, not type-I error.}
 \value{
 data.frame, one row per unit: the raw and family-adjusted p under
   each lens, the ACAT omnibus, the direction, and how many probes agreed.
+  \code{p_union_exact} is the second-level Westfall-Young minP calibration
+  of the any-lens rule: an EXACT family-wise p for the claim "some lens
+  carries this unit", computed by ranking the unit's smallest per-lens
+  family-adjusted p against the null distribution of the family-wide best
+  adjusted p (one value per permutation draw, min over units and lenses;
+  returned as \code{attr(., "union_null_min")}). It adapts to the measured
+  lens dependence - perfectly correlated lenses cost nothing extra,
+  independent ones the full threefold - and \code{mean(union_null_min <
+  alpha)} is the realized family-wise error of naming at the per-lens
+  adjusted-p threshold \code{alpha}. References: Westfall & Young (1993);
+  Ge, Dudoit & Speed (2003). \code{p_omnibus_adj} family-corrects the
+  ACAT omnibus the same way (permutation minP over each draw's per-unit
+  omnibus, \code{attr(., "omnibus_null_min")}): an exact family-wise p
+  that defends against BOTH multiplicities - the cross-lens combination
+  is absorbed by ACAT (Liu & Xie 2020), the cross-unit search by the
+  calibration - and is most powerful when all three lenses agree.
 }
 \description{
 Three complementary lenses on the same family

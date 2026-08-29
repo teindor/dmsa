@@ -339,6 +339,10 @@ dmsa_plot_locus <- function(probes, gene = "", chrom = NA,
                                     "strand") %in% names(gene_model))) {
       gene_model <- NULL
     } else {
+      ## `canonical` is optional in a caller-built table; default it so the
+      ## ordering below does not die on logical(0)
+      if (is.null(gene_model$canonical)) gene_model$canonical <- FALSE
+      gene_model$canonical <- !is.na(gene_model$canonical) & gene_model$canonical
       if (transcripts == "canonical" && any(gene_model$canonical))
         gene_model <- gene_model[gene_model$canonical, , drop = FALSE]
       ## canonical first, so it takes the top lane
@@ -498,8 +502,14 @@ dmsa_plot_locus <- function(probes, gene = "", chrom = NA,
   if (is.null(height))
     height <- round((if (draw_A) 620 else 380) +
                     max(760, 62 * nrow(p)) + 640)
-  if (!is.null(file)) { grDevices::png(file, width, height, res = res)
-    on.exit(grDevices::dev.off(), add = TRUE) }
+  if (!is.null(file)) {
+    ## honour the extension: the report calls this with the frame's plot_type,
+    ## and PNG bytes inside a .pdf name open in nothing
+    if (grepl("\\.pdf$", file, ignore.case = TRUE))
+      grDevices::pdf(file, width = width / res, height = height / res)
+    else grDevices::png(file, width, height, res = res)
+    on.exit(grDevices::dev.off(), add = TRUE)
+  }
   ## a gene model needs its own depth, and a stacked one needs more per lane
   hB <- if (!is.null(gene_model)) 2.15 + 0.55 * (length(unique(gene_model$transcript)) - 1L) else
     if (has_reg) 2.35 else 1.75

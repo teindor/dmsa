@@ -31,7 +31,11 @@ valid relabelling.}
 
 \item{seed}{Optional integer.}
 
-\item{nulls}{Optional list of pre-computed permutation null matrices, as returned by an earlier call on the same frame. Supplying it reuses the shared permutation stream instead of drawing a new one, which is what keeps lens, engine and level results jointly calibrated.}
+\item{nulls}{Logical (default \code{FALSE}). \code{TRUE} returns the
+vector of permutation null statistics as \code{$null_t} alongside the
+test, so a caller can compose joint corrections on one stream. (Joint
+calibration across lenses, engines and levels comes from sharing the
+\code{seed}, which \code{dmsa_model_omnibus()} does for you.)}
 }
 \value{
 An object of class \code{dmsa_model}.

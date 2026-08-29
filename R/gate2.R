@@ -50,8 +50,8 @@
 #' @param method Pooling method for \code{dmsa_test()}.
 #' @param gate \code{"both"}, \code{"sparse"} or \code{"dense"}.
 #' @param sparse_reach \code{"children"} or the name of a deeper level a unit's
-#' @param family_correction Character. Family-wise correction applied inside each level-local family: \code{"maxT"} (default) Westfall-Young step-down on the strength scale, or \code{"minP"} step-down on marginal p-values. The choice is consequential and should be fixed in advance; see the package vignette and \code{REPRODUCE.md}.
 #'   sparse arm may look straight at.
+#' @param family_correction Character. Family-wise correction applied inside each level-local family: \code{"maxT"} (default) Westfall-Young step-down on the strength scale, or \code{"minP"} step-down on marginal p-values. The choice is consequential and should be fixed in advance; see the package vignette and \code{REPRODUCE.md}.
 #' @return Object of class \code{dmsa_gate}.
 #' @examples
 #' set.seed(1)
@@ -83,7 +83,9 @@ dmsa_levels <- function(M, data, rhs, term, map, alignment, roots, block = NULL,
     .old_seed <- if (exists(".Random.seed", envir = globalenv()))
       get(".Random.seed", envir = globalenv()) else NULL
     on.exit(if (!is.null(.old_seed))
-      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+      assign(".Random.seed", .old_seed, envir = globalenv())
+      else if (exists(".Random.seed", envir = globalenv()))
+        rm(".Random.seed", envir = globalenv()), add = TRUE)
     set.seed(seed)
   }
   M <- as.matrix(M); data <- as.data.frame(data)

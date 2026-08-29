@@ -23,14 +23,6 @@
 # multinomial and count outcomes alike. Calibration of this scheme is checked by
 # simulation rather than asserted.
 
-.blk_perm_rows <- function(block, B) {
-  if (is.null(block)) {
-    n <- attr(block, "n")
-    return(lapply(seq_len(B), function(i) sample.int(n)))
-  }
-  dmsa_block_index(block, B)
-}
-
 ## residualize a matrix of predictors on a covariate design
 .residualize <- function(P, Z) {
   if (is.null(Z) || !ncol(Z)) return(scale(P, TRUE, FALSE))
@@ -91,7 +83,9 @@ dmsa_outcome <- function(data, outcome, score, family = c("gaussian", "binomial"
     .old_seed <- if (exists(".Random.seed", envir = globalenv()))
       get(".Random.seed", envir = globalenv()) else NULL
     on.exit(if (!is.null(.old_seed))
-      assign(".Random.seed", .old_seed, envir = globalenv()), add = TRUE)
+      assign(".Random.seed", .old_seed, envir = globalenv())
+      else if (exists(".Random.seed", envir = globalenv()))
+        rm(".Random.seed", envir = globalenv()), add = TRUE)
     set.seed(seed)
   }
   data <- as.data.frame(data)
@@ -207,7 +201,15 @@ dmsa_outcome <- function(data, outcome, score, family = c("gaussian", "binomial"
   ## ---- permutation on the predictor side ----------------------------------
   p_perm <- NA_real_; null_stat <- numeric(0)
   if (B > 0) {
-    Pr <- .residualize(P[, tested, drop = FALSE], Z)
+    ## E10b (2026-08-29, PI-approved): FULL Freedman-Lane geometry. The
+    ## tested term is residualised on every non-tested regressor of the
+    ## fitted model - for the moderated test that means S and W as well as
+    ## the covariates, not the covariates alone. Otherwise the observed
+    ## statistic's regressor carries the product's collinearity with its
+    ## parents while every permuted draw has that geometry broken, and the
+    ## null is mis-centred exactly when S x W is collinear with S or W.
+    .Zfull <- cbind(Z, P[, setdiff(colnames(P), tested), drop = FALSE])
+    Pr <- .residualize(P[, tested, drop = FALSE], .Zfull)
     blk <- if (is.null(block)) NULL else dat[[block]]
     idxs <- if (is.null(blk)) lapply(seq_len(B), function(i) sample.int(n))
             else dmsa_block_index(blk, B)

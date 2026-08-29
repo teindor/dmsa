@@ -100,3 +100,4 @@ dmsa_se <- function(se, assay = 1L, probes = NULL) {
 
   list(M = M, data = dat)
 }
+

@@ -63,6 +63,16 @@ dmsa_change <- function(M_before, M_after, data, outcome = NULL, exposure,
                         weighting = c("combined", "reliability", "flat"), w_floor = 1.5,
                         seed = 1) {
   role <- match.arg(role); correction <- match.arg(correction)
+  ## E10 (PI-approved): minP is defined here only for a single engine; the
+  ## combined engine's fused statistic has no per-engine rank-p to minimise.
+  ## The old code silently ran maxT while RECORDING "minP" on the object.
+  if (correction == "minP" &&
+      identical(match.arg(weighting, c("combined", "reliability", "flat")),
+                "combined"))
+    stop("correction = \"minP\" is not defined for the combined engine in ",
+         "dmsa_change(). Use correction = \"maxT\" (the default), or a ",
+         "single-engine weighting (\"flat\" or \"reliability\").",
+         call. = FALSE)
   weighting <- match.arg(weighting)
   M_before <- as.matrix(M_before); M_after <- as.matrix(M_after)
   stopifnot(ncol(M_before) == ncol(M_after),

@@ -2,7 +2,7 @@
 % Please edit documentation in R/reference.R
 \name{alpha_reference}
 \alias{alpha_reference}
-\title{The bundled Project Alpha tables as a reference bundle}
+\title{The bundled Project Alpha biological reference}
 \usage{
 alpha_reference(modules = NULL)
 }
@@ -15,7 +15,16 @@ H / P / A / negative-feedback split).}
 A \code{dmsa_reference}.
 }
 \description{
-The bundled Project Alpha tables as a reference bundle
+Reads the audited 2026c gene codebook that ships with the package and
+returns it as a \code{\link{dmsa_reference}}: one row per gene within its
+system and module, with the curated gene-to-system polarity attached.
+}
+\details{
+The reference is BIOLOGICAL - it defines \code{system > module > gene} and
+stops there. Which CpGs exist is a property of the methylation data a user
+supplies, not of the biology, so a gene with no probe in any particular
+cohort still belongs to its system here. Genes with no curated polarity are
+left UNRESOLVED; they are never silently treated as \code{+1}.
 }
 \examples{
 ref <- alpha_reference()

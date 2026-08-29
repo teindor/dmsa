@@ -212,3 +212,56 @@ test_that("no usable probe is dropped between alignment and the test", {
   expect_true(all(!is.na(al$p_s_plus[al$usable])))
   expect_equal(sum(al$usable), sum(al$usable & !is.na(al$p_s_plus)))
 })
+
+test_that("all-one-direction sets: evidence-backed calls get a once-per-set message naming where to check", {
+  ## PI 2026-08-29: "If cpgdirection works, it works. This message confuses
+  ## users... if the user CAN do something, tell the user what and where."
+  probes <- sprintf("cg77%06d", 1:55)
+  d_ev <- data.frame(cpg_id = probes, best_direction = -1L,
+                     best_confidence = .8, best_evidence = "curated_egene",
+                     direction_tier = "M", stringsAsFactors = FALSE)
+  g <- rep("GENEX", 55)
+
+  ## evidence-backed: a message (not a warning), pointing at the exact files
+  m1 <- capture.output(a1 <- dmsa_align(d_ev, genes = g), type = "message")
+  hit <- grep("all 55 direction calls", m1, value = TRUE)
+  expect_length(hit, 1)
+  expect_match(hit, "analysis_set.csv", fixed = TRUE)
+  expect_match(hit, "direction_tier", fixed = TRUE)
+  expect_match(hit, "frame\\$map")
+  expect_match(hit, "Shown once per set", fixed = TRUE)
+  expect_no_warning(dmsa_align(d_ev, genes = g))
+
+  ## and it is throttled: the same set aligned again stays silent
+  m2 <- capture.output(a2 <- dmsa_align(d_ev, genes = g), type = "message")
+  expect_length(grep("direction calls", m2), 0)
+
+  ## the throttle is per SET: a different probe block speaks again
+  probes3 <- sprintf("cg88%06d", 1:55)
+  d_ev3 <- d_ev; d_ev3$cpg_id <- probes3
+  m3 <- capture.output(a3 <- dmsa_align(d_ev3, genes = g), type = "message")
+  expect_length(grep("all 55 direction calls", m3), 1)
+})
+
+test_that("all-one-direction sets WITHOUT evidence tiers keep an actionable warning", {
+  probes <- sprintf("cg99%06d", 1:52)
+  d_raw <- data.frame(cpg_id = probes, d = 1L, stringsAsFactors = FALSE)
+  g <- rep("GENEY", 52)
+  w <- tryCatch(withCallingHandlers(
+    { dmsa_align(d_raw, genes = g); NULL },
+    warning = function(w) { stop(conditionMessage(w)) }),
+    error = function(e) conditionMessage(e))
+  expect_match(w, "every one of 52")
+  expect_match(w, "NO evidence tiers")
+  expect_match(w, "table\\(map\\$best_direction\\)")
+  ## throttled on repeat too
+  expect_no_warning(dmsa_align(d_raw, genes = g))
+
+  ## a mixed-direction set triggers neither branch
+  d_mix <- data.frame(cpg_id = sprintf("cg66%06d", 1:60),
+                      d = rep(c(1L, -1L), 30), stringsAsFactors = FALSE)
+  m <- capture.output(
+    expect_no_warning(dmsa_align(d_mix, genes = rep("GENEZ", 60))),
+    type = "message")
+  expect_length(grep("direction calls", m), 0)
+})

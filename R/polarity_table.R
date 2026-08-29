@@ -173,7 +173,8 @@ dmsa_polarity <- function(x = "alpha", sets = NULL) {
   } else if (is.character(x) && length(x) == 1L) {
     if (!file.exists(x)) stop("polarity file not found: ", x, call. = FALSE)
     p <- utils::read.csv(x, stringsAsFactors = FALSE,
-                         colClasses = c(system_id = "character"))
+                         colClasses = c(system_id = "character",
+                                        module_id = "character"))
     src <- x; name <- basename(x)
   } else {
     p <- as.data.frame(x, stringsAsFactors = FALSE); name <- "user data.frame"

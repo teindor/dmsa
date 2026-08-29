@@ -87,7 +87,9 @@ test_that("dmsa_probe_coords reads a plain manifest and keeps probe order", {
               man, sep = "\t", row.names = FALSE, quote = FALSE)
   co <- dmsa_probe_coords(c("cg1", "cg3", "cgX"), file = man)
   expect_identical(co$probe, c("cg1", "cg3", "cgX"))
-  expect_equal(co$pos, c(100, 300, NA_real_))
+  ## E10 (PI-approved): CpG_beg is BED-convention 0-based and is now shifted
+  ## to the 1-based scale everything else in the locus panel uses
+  expect_equal(co$pos, c(101, 301, NA_real_))
   expect_identical(co$chr[1], "20")
   unlink(man)
 })

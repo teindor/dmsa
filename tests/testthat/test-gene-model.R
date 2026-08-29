@@ -135,3 +135,27 @@ test_that("the Gviz engine refuses clearly rather than half-drawing", {
   ## and it names the dependency-free alternative in the same breath
   expect_error(dmsa_plot_locus_gviz(pr, gene = "AVP"), "dmsa_plot_locus")
 })
+
+## ---- Ensembl lookup is JSON, parsed without a JSON dependency -------------
+## lookup/symbol serves json/xml/jsonp ONLY; the old request for text/x-gff3
+## was an unconditional HTTP 400 from Ensembl, on every machine (found
+## 2026-08-29 when gene_models = "auto" first exercised the path live).
+
+test_that(".gm_json_field reads the flat fields of a real lookup response", {
+  loc <- paste0('{"source":"ensembl_havana","object_type":"Gene",',
+                '"logic_name":"ensembl_havana_gene_homo_sapiens",',
+                '"species":"homo_sapiens",',
+                '"description":"prolactin receptor [Source:HGNC Symbol;Acc:HGNC:9446]",',
+                '"display_name":"PRLR","assembly_name":"GRCh38",',
+                '"biotype":"protein_coding","end":35230612,',
+                '"seq_region_name":"5","db_type":"core","strand":-1,',
+                '"id":"ENSG00000113494","start":35048829,"version":21,',
+                '"canonical_transcript":"ENST00000618457.4"}')
+  expect_identical(.gm_json_field(loc, "seq_region_name"), "5")
+  expect_identical(.gm_json_field(loc, "start"), "35048829")
+  expect_identical(.gm_json_field(loc, "end"), "35230612")
+  expect_identical(.gm_json_field(loc, "id"), "ENSG00000113494")
+  expect_identical(.gm_json_field(loc, "canonical_transcript"),
+                   "ENST00000618457.4")
+  expect_true(is.na(.gm_json_field(loc, "not_a_key")))
+})

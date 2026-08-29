@@ -16,7 +16,12 @@
 # shape can replace it; dmsa_sets_template() writes the schema and
 # dmsa_sets_check() validates a candidate file before it is used.
 
-.CAS_REQ <- c("system_id", "system", "module_id", "module", "gene", "cpg")
+## The BIOLOGICAL cascade is system > module > gene. A CpG/probe column is
+## OPTIONAL provenance, not part of the biological definition: which CpGs
+## exist is a property of the user's data, not of the biology. Cascades that
+## still carry `cpg` keep working and gain the CpG counts below.
+.CAS_REQ <- c("system_id", "system", "module_id", "module", "gene")
+.CAS_OPT_CPG <- c("cpg", "probe_id")
 .CAS_ID  <- c("system_id", "module_id")          # never parse these as numeric
 .CAS_COLPREFIX <- "col_"
 
@@ -98,7 +103,8 @@
 dmsa_sets <- function(x = "alpha", audit = NULL, polarity = NULL,
                       name = NULL) {
   src <- NULL
-  if (is.character(x) && length(x) == 1L && identical(x, "alpha")) {
+  is_alpha <- is.character(x) && length(x) == 1L && identical(x, "alpha")
+  if (is_alpha) {
     f <- .cas_builtin("cascade")
     if (is.null(f))
       stop("the bundled Alpha cascade is not installed with this copy of dmsa; ",
@@ -122,7 +128,14 @@ dmsa_sets <- function(x = "alpha", audit = NULL, polarity = NULL,
          "\nrun dmsa_sets_template() to see the schema", call. = FALSE)
   for (v in intersect(c(.CAS_ID, "gene", "cpg", "probe_id"), names(cas)))
     cas[[v]] <- as.character(cas[[v]])
-  if (!"probe_id" %in% names(cas)) cas$probe_id <- cas$cpg
+  if (!"probe_id" %in% names(cas) && "cpg" %in% names(cas))
+    cas$probe_id <- cas$cpg
+  ## and the mirror: a cascade declaring only probe_id still HAS a probe layer.
+  ## Every downstream "does this cascade carry CpGs" test keys on `cpg`, so
+  ## derive it (canonical cg id = the probe id up to the first underscore)
+  ## rather than teaching each of those sites about both spellings.
+  if (!"cpg" %in% names(cas) && "probe_id" %in% names(cas))
+    cas$cpg <- sub("_.*$", "", tolower(as.character(cas$probe_id)))
   if (!"system_short" %in% names(cas)) {
     tab <- unique(cas[, c("system_id", "system")])
     tab <- tab[order(.cas_num(tab$system_id), tab$system), , drop = FALSE]
@@ -157,8 +170,10 @@ dmsa_sets <- function(x = "alpha", audit = NULL, polarity = NULL,
   }
   mods$n_genes <- as.integer(tapply(cas$gene, cas$module_id,
                                     function(g) length(unique(g)))[mods$module_id])
-  mods$n_cpgs  <- as.integer(tapply(cas$cpg, cas$module_id,
-                                    function(g) length(unique(g)))[mods$module_id])
+  mods$n_cpgs  <- if ("cpg" %in% names(cas))
+    as.integer(tapply(cas$cpg, cas$module_id,
+                      function(g) length(unique(g)))[mods$module_id])
+  else NA_integer_
   mods <- mods[order(.cas_num(mods$system_id), .cas_modnum(mods$module_id)), ,
                drop = FALSE]
   rownames(mods) <- NULL
@@ -168,8 +183,10 @@ dmsa_sets <- function(x = "alpha", audit = NULL, polarity = NULL,
                                       function(m) length(unique(m)))[sysd$system_id])
   sysd$n_genes <- as.integer(tapply(cas$gene, cas$system_id,
                                     function(g) length(unique(g)))[sysd$system_id])
-  sysd$n_cpgs <- as.integer(tapply(cas$cpg, cas$system_id,
-                                   function(g) length(unique(g)))[sysd$system_id])
+  sysd$n_cpgs <- if ("cpg" %in% names(cas))
+    as.integer(tapply(cas$cpg, cas$system_id,
+                      function(g) length(unique(g)))[sysd$system_id])
+  else NA_integer_
   sysd <- sysd[order(.cas_num(sysd$system_id)), , drop = FALSE]
   rownames(sysd) <- NULL
 
@@ -177,19 +194,40 @@ dmsa_sets <- function(x = "alpha", audit = NULL, polarity = NULL,
   ## cascade, and for a user cascade whatever polarity columns it carries. A
   ## cascade with no polarity is usable - system scores then weight every gene
   ## +1 - but the print method says so rather than letting it pass unnoticed.
+  ## spec 41: POLARITY THE USER SUPPLIED IS NEVER SILENTLY DISCARDED.
+  ## try()/inherits("try-error") -> NULL turned a malformed polarity table into
+  ## no polarity at all, and a cascade with no polarity weights every gene +1 -
+  ## so a typo in a w_g column became an unannounced all-activating system
+  ## score. Anything the USER provided now errors and names the problem; only
+  ## the bundled table may degrade, and then it warns.
   pol <- NULL
   if (!is.null(polarity)) {
-    pol <- try(dmsa_polarity(polarity), silent = TRUE)
-    if (inherits(pol, "try-error")) pol <- NULL
-  } else if (identical(name, "Project Alpha 2026c (module-audited)")) {
-    pol <- try(dmsa_polarity("alpha"), silent = TRUE)
-    if (inherits(pol, "try-error")) pol <- NULL
+    pol <- tryCatch(dmsa_polarity(polarity), error = function(e)
+      stop("the `polarity` you supplied could not be read: ",
+           conditionMessage(e),
+           "\nIt is not being ignored: a cascade with no polarity weights ",
+           "every gene +1, which would silently make every system look purely ",
+           "activating.\nFix the table, or pass polarity = NULL to declare ",
+           "that you have none.\nNo cascade was built.", call. = FALSE))
+  } else if (isTRUE(is_alpha)) {
+    ## keyed on WHERE the cascade came from, not on the display `name` - a
+    ## user renaming the bundled cascade must not silently lose its polarity
+    pol <- tryCatch(dmsa_polarity("alpha"), error = function(e) {
+      warning("the bundled Alpha polarity table could not be read (",
+              conditionMessage(e), "); this cascade carries no polarity, so ",
+              "signed system-level analysis is unavailable")
+      NULL })
   } else if ("w_g" %in% names(cas)) {
-    pol <- try(dmsa_polarity(unique(cas[, intersect(
-      c("system_id", "system_short", "system", "module_id", "gene", "w_g",
-        "role", "confidence", "w_g_source", "anchor", "evidence", "citation"),
-      names(cas))])), silent = TRUE)
-    if (inherits(pol, "try-error")) pol <- NULL
+    keep <- intersect(c("system_id", "system_short", "system", "module_id",
+                        "gene", "w_g", "role", "confidence", "w_g_source",
+                        "anchor", "evidence", "citation"), names(cas))
+    pol <- tryCatch(dmsa_polarity(unique(cas[, keep])), error = function(e)
+      stop("this cascade carries a `w_g` column, but it could not be read as ",
+           "polarity: ", conditionMessage(e),
+           "\nIgnoring it would weight every gene +1 and report a purely ",
+           "activating system score without saying so.\nFix the w_g column, ",
+           "or remove it to declare that the cascade has no polarity.\n",
+           "No cascade was built.", call. = FALSE))
   }
 
   structure(list(cascade = cas, systems = sysd, modules = mods,
@@ -212,20 +250,31 @@ dmsa_sets <- function(x = "alpha", audit = NULL, polarity = NULL,
 #' @export
 print.dmsa_sets <- function(x, ...) {
   cat("dmsa selection cascade:", x$name, "\n")
-  cat(sprintf("  %d systems | %d modules | %d genes | %d CpGs | %d rows\n",
-              nrow(x$systems), nrow(x$modules),
-              length(unique(x$cascade$gene)), length(unique(x$cascade$cpg)),
-              nrow(x$cascade)))
+  .ncpg <- if ("cpg" %in% names(x$cascade))
+    length(unique(x$cascade$cpg)) else NA_integer_
+  if (is.na(.ncpg))
+    cat(sprintf("  %d systems | %d modules | %d genes | %d rows (biological; no CpG column)\n",
+                nrow(x$systems), nrow(x$modules),
+                length(unique(x$cascade$gene)), nrow(x$cascade)))
+  else
+    cat(sprintf("  %d systems | %d modules | %d genes | %d CpGs | %d rows\n",
+                nrow(x$systems), nrow(x$modules),
+                length(unique(x$cascade$gene)), .ncpg, nrow(x$cascade)))
   if (length(x$columns))
     cat("  data-column keys available:", paste(x$columns, collapse = ", "), "\n")
   cat("\n  use these short names in systems = c(...):\n")
   s <- x$systems
   w <- max(nchar(s$system_short))
   for (i in seq_len(nrow(s)))
-    cat(sprintf("   %3s  %-*s  %-44s  %2d mod  %4d gene  %5d cpg\n",
-                s$system_id[i], w, s$system_short[i],
-                substr(s$system[i], 1, 44), s$n_modules[i], s$n_genes[i],
-                s$n_cpgs[i]))
+    if (is.na(s$n_cpgs[i]))
+      cat(sprintf("   %3s  %-*s  %-44s  %2d mod  %4d gene\n",
+                  s$system_id[i], w, s$system_short[i],
+                  substr(s$system[i], 1, 44), s$n_modules[i], s$n_genes[i]))
+    else
+      cat(sprintf("   %3s  %-*s  %-44s  %2d mod  %4d gene  %5d cpg\n",
+                  s$system_id[i], w, s$system_short[i],
+                  substr(s$system[i], 1, 44), s$n_modules[i], s$n_genes[i],
+                  s$n_cpgs[i]))
   .cas_evidence_banner(x$modules, indent = "  ")
   .cas_polarity_banner(x, indent = "  ")
   cat("\n  dmsa_select(systems = c(\"", s$system_short[1], "\")) ",
@@ -385,8 +434,20 @@ dmsa_select <- function(x = "alpha", systems = NULL, modules = "full",
   d <- d[d$module_id %in% m$keep, , drop = FALSE]
   g <- .cas_resolve_below(unique(d$gene), genes, "genes")
   d <- d[d$gene %in% g$keep, , drop = FALSE]
-  p <- .cas_resolve_below(unique(d$cpg), probes, "probes", extra = unique(d$probe_id))
-  d <- d[d$cpg %in% p$keep | d$probe_id %in% p$keep, , drop = FALSE]
+  ## A BIOLOGICAL cascade (system > module > gene) carries no CpG column, so
+  ## there is nothing to restrict at probe level; asking for one is a user
+  ## error worth naming rather than silently ignoring.
+  p <- list(keep = character(), all = TRUE)   # no probe layer by default
+  if ("cpg" %in% names(d)) {
+    p <- .cas_resolve_below(unique(d$cpg), probes, "probes",
+                            extra = unique(d$probe_id))
+    d <- d[d$cpg %in% p$keep | d$probe_id %in% p$keep, , drop = FALSE]
+  } else if (!is.null(probes) && !identical(probes, "full")) {
+    stop("`probes` was supplied but this cascade is biological ",
+         "(system > module > gene) and carries no CpG column. Which CpGs ",
+         "exist is a property of your methylation data, not of the ",
+         "reference; restrict at gene level instead.", call. = FALSE)
+  }
   if (!nrow(d)) stop("selection is empty after applying the restrictions",
                      call. = FALSE)
 
@@ -417,8 +478,10 @@ dmsa_select <- function(x = "alpha", systems = NULL, modules = "full",
   ## recount within the selection, so a narrowed gene set is reported honestly
   mods$n_genes_selected <- as.integer(tapply(d$gene, d$module_id,
       function(z) length(unique(z)))[mods$module_id])
-  mods$n_cpgs_selected <- as.integer(tapply(d$cpg, d$module_id,
-      function(z) length(unique(z)))[mods$module_id])
+  mods$n_cpgs_selected <- if ("cpg" %in% names(d))
+    as.integer(tapply(d$cpg, d$module_id,
+        function(z) length(unique(z)))[mods$module_id])
+  else NA_integer_
 
   pol <- cas$polarity
   if (!is.null(pol)) {
@@ -450,14 +513,23 @@ print.dmsa_selection <- function(x, ...) {
   for (i in seq_len(nrow(x$systems))) {
     sid <- x$systems$system_id[i]
     dd <- d[d$system_id == sid, , drop = FALSE]
-    cat(sprintf("   %-16s %-40s %2d mod  %4d gene  %5d cpg\n",
-                x$systems$system_short[i], substr(x$systems$system[i], 1, 40),
-                length(unique(dd$module_id)), length(unique(dd$gene)),
-                length(unique(dd$cpg))))
+    if ("cpg" %in% names(dd))
+      cat(sprintf("   %-16s %-40s %2d mod  %4d gene  %5d cpg\n",
+                  x$systems$system_short[i], substr(x$systems$system[i], 1, 40),
+                  length(unique(dd$module_id)), length(unique(dd$gene)),
+                  length(unique(dd$cpg))))
+    else
+      cat(sprintf("   %-16s %-40s %2d mod  %4d gene\n",
+                  x$systems$system_short[i], substr(x$systems$system[i], 1, 40),
+                  length(unique(dd$module_id)), length(unique(dd$gene))))
   }
-  cat(sprintf("  total: %d modules, %d genes, %d CpGs\n",
-              length(unique(d$module_id)), length(unique(d$gene)),
-              length(unique(d$cpg))))
+  if ("cpg" %in% names(d))
+    cat(sprintf("  total: %d modules, %d genes, %d CpGs\n",
+                length(unique(d$module_id)), length(unique(d$gene)),
+                length(unique(d$cpg))))
+  else
+    cat(sprintf("  total: %d modules, %d genes\n",
+                length(unique(d$module_id)), length(unique(d$gene))))
   if (!is.null(x$column_key))
     cat("  data columns keyed by:", x$column_key, "\n")
   .cas_evidence_banner(x$modules, indent = "  ")
@@ -724,10 +796,17 @@ dmsa_sets_check <- function(x, verbose = TRUE) {
   ## columns measuring one CpG), so a repeated module+gene+cpg triple is the
   ## manifest working as intended. Keying uniqueness on cpg called 238 such rows
   ## duplicates and declared the bundled set unusable.
-  key <- if ("probe_id" %in% names(cas)) "probe_id" else "cpg"
-  dup <- anyDuplicated(cas[, c("module_id", "gene", key)])
-  add(paste0("no duplicate module+gene+", key, " rows"), dup == 0,
-      if (dup) paste("first at row", dup) else "")
+  key <- if ("probe_id" %in% names(cas)) "probe_id"
+         else if ("cpg" %in% names(cas)) "cpg" else NULL
+  if (is.null(key)) {
+    dup <- anyDuplicated(cas[, c("module_id", "gene")])
+    add("no duplicate module+gene rows", dup == 0,
+        if (dup) paste("first at row", dup) else "")
+  } else {
+    dup <- anyDuplicated(cas[, c("module_id", "gene", key)])
+    add(paste0("no duplicate module+gene+", key, " rows"), dup == 0,
+        if (dup) paste("first at row", dup) else "")
+  }
   ev <- if (!is.null(mods) && "evidence_strength" %in% names(mods))
     sum(!is.na(mods$evidence_strength))
   else if ("evidence_strength" %in% names(cas))
@@ -740,18 +819,23 @@ dmsa_sets_check <- function(x, verbose = TRUE) {
       else "no evidence_strength - results will print without an evidence banner",
       level = "warn")
 
-  c2g <- tapply(cas$gene, cas$cpg, function(z) length(unique(z)))
-  shared <- sum(c2g > 1)
-  rep_probes <- if ("probe_id" %in% names(cas)) {
-    n <- tapply(cas$probe_id, cas$cpg, function(z) length(unique(z)))
-    sum(n > 1)
-  } else 0L
+  has_cpg <- "cpg" %in% names(cas)
+  shared <- if (has_cpg)
+    sum(tapply(cas$gene, cas$cpg, function(z) length(unique(z))) > 1) else 0L
+  rep_probes <- if (has_cpg && "probe_id" %in% names(cas))
+    sum(tapply(cas$probe_id, cas$cpg, function(z) length(unique(z))) > 1)
+  else 0L
 
   if (verbose) {
-    cat(sprintf("cascade: %d rows | %d systems | %d modules | %d genes | %d CpGs\n",
-                nrow(cas), length(unique(cas$system_id)),
-                length(unique(cas$module_id)), length(unique(cas$gene)),
-                length(unique(cas$cpg))))
+    if (has_cpg)
+      cat(sprintf("cascade: %d rows | %d systems | %d modules | %d genes | %d CpGs\n",
+                  nrow(cas), length(unique(cas$system_id)),
+                  length(unique(cas$module_id)), length(unique(cas$gene)),
+                  length(unique(cas$cpg))))
+    else
+      cat(sprintf("cascade: %d rows | %d systems | %d modules | %d genes (biological)\n",
+                  nrow(cas), length(unique(cas$system_id)),
+                  length(unique(cas$module_id)), length(unique(cas$gene))))
     .cas_report(res, fail, warn)
     if (shared)
       cat(sprintf("note: %d CpG(s) are annotated to more than one gene - allowed, "

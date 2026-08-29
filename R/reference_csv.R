@@ -62,7 +62,17 @@
 dmsa_reference_csv <- function(path, name = NULL, version = NA_character_,
                               notes = NULL, min_genes = 3L, quiet = FALSE) {
   if (!file.exists(path)) stop("no such file: ", path, call. = FALSE)
-  df <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
+  ## peek at the header so any id-like column is read as character - numeric
+  ## parsing merges module ids "2.10" and "2.1" (same rule as the cascade
+  ## reader). Names are matched loosely because this reader accepts aliases.
+  .hd <- names(utils::read.csv(path, nrows = 1, check.names = FALSE))
+  .idn <- .hd[grepl("(^|_)(system|module|set)_?id$|^systemid$|^moduleid$",
+                    tolower(.hd))]
+  df <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE,
+                        colClasses =
+                          if (length(.idn))
+                            stats::setNames(rep("character", length(.idn)),
+                                            .idn) else NA)
   if (!nrow(df)) stop("the file has no rows", call. = FALSE)
 
   c_sys  <- .pick_col(df, c("system", "system_id", "systemid", "pathway", "set",
@@ -130,6 +140,17 @@ dmsa_reference_csv <- function(path, name = NULL, version = NA_character_,
     if (!is.null(c_conf)) polarity$confidence <- as.character(df[[c_conf]])
     if (!is.null(c_src))  polarity$source <- as.character(df[[c_src]])
     polarity <- polarity[!is.na(polarity$w_g), , drop = FALSE]
+    ## duplicates with CONFLICTING signs must not resolve silently first-wins
+    .k <- paste(polarity$gene, polarity$system_id)
+    if (anyDuplicated(.k)) {
+      .con <- vapply(split(polarity$w_g, .k),
+                     function(z) length(unique(z)) > 1L, TRUE)
+      if (any(.con))
+        warning("conflicting w_g for the same gene within one system (",
+                paste(utils::head(names(.con)[.con], 3), collapse = "; "),
+                "); keeping the first value of each. Resolve the duplicates ",
+                "in the CSV.", call. = FALSE)
+    }
     polarity <- polarity[!duplicated(polarity[c("gene", "system_id")]), , drop = FALSE]
     polarity <- polarity[paste(polarity$gene, polarity$system_id) %in%
                            paste(systems$gene, systems$system_id), , drop = FALSE]
@@ -146,12 +167,17 @@ dmsa_reference_csv <- function(path, name = NULL, version = NA_character_,
       anchors <- unique(data.frame(system_id = sys[flag], gene = gene[flag],
                                    stringsAsFactors = FALSE))
       amethod <- "user"
-    } else if (!is.null(c_role) && any(grepl("driver", df[[c_role]],
-                                             ignore.case = TRUE))) {
-      dr <- grepl("driver", df[[c_role]], ignore.case = TRUE)
+    } else if (!is.null(c_role) &&
+               any(tolower(trimws(as.character(df[[c_role]]))) == "driver",
+                   na.rm = TRUE)) {
+      ## EXACT role match. The role vocabulary contains "driver-adjacent" and
+      ## "brake-of-driver"; a substring match promoted a BRAKE to the anchor
+      ## that defines what activation means for its system.
+      dr <- !is.na(df[[c_role]]) &
+        tolower(trimws(as.character(df[[c_role]]))) == "driver"
       anchors <- unique(data.frame(system_id = sys[dr], gene = gene[dr],
                                    stringsAsFactors = FALSE))
-      amethod <- "curated"
+      amethod <- "user"   # derived from the user's role column, not curation
     } else {
       top <- do.call(rbind, lapply(split(polarity, polarity$system_id), function(p) {
         if (all(p$w_g <= 0)) return(NULL)
@@ -164,6 +190,10 @@ dmsa_reference_csv <- function(path, name = NULL, version = NA_character_,
                 "explicit about what defines activation.", call. = FALSE)
       }
     }
+    ## anchors were built from the pre-filter row vectors: keep only anchors
+    ## whose system survived min_genes (polarity above got the same treatment)
+    if (!is.null(anchors))
+      anchors <- anchors[anchors$system_id %in% systems$system_id, , drop = FALSE]
     if (!is.null(anchors) && !nrow(anchors)) { anchors <- NULL; amethod <- "none" }
   }
   if (is.null(polarity) && !quiet)

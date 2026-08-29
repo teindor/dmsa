@@ -18,9 +18,27 @@
 
 #' Local false discovery rate by central matching
 #'
-#' Efron-style two-group model on z-values: the null is fitted to the central
-#' mass, the alternative is a wider normal, and \code{pi0} comes from the
-#' central proportion. Returns one local fdr per unit.
+#' Efron-style two-group model on z-values: the null centre and scale are
+#' fitted on an iteratively trimmed core (robust to a minority signal slab),
+#' \code{pi0} is the observed mass inside the window that holds 50% under
+#' the fitted null, and the alternative is a wider normal. Returns one local
+#' fdr per unit.
+#'
+#' Assumptions, stated plainly (calibrated by simulation, 2026-08-29):
+#' signal must be a MINORITY of units - power is good to roughly a third
+#' signal and collapses conservatively (toward selecting nothing) beyond
+#' that; weak signal (|z| ~ 2) is largely invisible to the EB arm (also
+#' conservative); and the null must be approximately GAUSSIAN. A null with
+#' both tails significantly heavier than the fitted Gaussian - kurtosis,
+#' which the two-group model would misread as signal - is detected by a
+#' two-radius symmetric-tail-excess guard and the function returns
+#' \code{NULL} with a warning, the callers' documented fall-back to the
+#' frequentist rule. The guard keys on BOTH tails being in excess, so
+#' one-sided signal does not trip it (~3%, same as a pure Gaussian null);
+#' symmetric two-sided signal DOES trip it and is handled by the frequentist
+#' arm instead - a conservative, never a silent, outcome. Residual risk:
+#' with only a few hundred units a heavy-tailed null is detected in about
+#' two runs of three; below that scale prefer the frequentist engine.
 #'
 #' @param z numeric vector of unit-level z statistics (null approximately
 #'   standard normal after calibration).
@@ -44,13 +62,64 @@
 dmsa_lfdr <- function(z, prior_odds_multiplier = 1, min_n = 50L) {
   z <- as.numeric(z)
   if (length(z) < min_n || stats::sd(z) == 0) return(NULL)
-  ## null centre and spread from the central half (robust to a sparse slab)
-  q <- stats::quantile(z, c(.25, .75), names = FALSE)
+  ## E5 fix (2026-08-29, PI-approved). The old estimator read the mass
+  ## between the sample's OWN quartiles - which is 0.5 by definition of
+  ## quartiles - so pi0 was 1.0 whatever the data and the whole EB arm ran
+  ## with a hard-coded ~1% signal prior, deaf to the data.
+  ##
+  ## Efron-style central matching, made robust to a heavy slab: the null's
+  ## centre and scale are estimated on an iteratively TRIMMED core (values
+  ## within 1.5 fitted SDs of the fitted centre, scale corrected for the
+  ## truncation), so a signal cluster cannot drag the fitted null toward
+  ## itself the way raw quantiles can. pi0 is then the observed mass inside
+  ## the FIXED window delta +/- qnorm(.75)*sigma0 - the interval that holds
+  ## exactly 50% under the fitted null - divided by 0.5. Pure noise gives
+  ## pi0 ~ 1 (the old behaviour, now earned rather than hard-coded); real
+  ## signal pushes mass out of the window and pi0 falls, so selection opens.
   delta <- stats::median(z)
-  sigma0 <- max((q[2] - q[1]) / (2 * stats::qnorm(.75)), 1e-6)
-  ## pi0 from the central mass: expected central mass under the null is 0.5
-  centre <- mean(z > q[1] & z < q[2])
+  sigma0 <- max(stats::mad(z), 1e-6)
+  .tf <- 1.5
+  ## sd of a normal truncated at +/- 1.5 sd understates sigma by this factor
+  .corr <- sqrt(1 - 2 * .tf * stats::dnorm(.tf) / (2 * stats::pnorm(.tf) - 1))
+  for (.it in 1:3) {
+    core <- z[abs(z - delta) <= .tf * sigma0]
+    if (length(core) < min_n / 2) break
+    delta <- stats::median(core)
+    s_new <- stats::sd(core) / .corr
+    if (!is.finite(s_new) || s_new <= 0) break
+    sigma0 <- s_new
+  }
+  half <- stats::qnorm(.75) * sigma0
+  centre <- mean(z >= delta - half & z <= delta + half)
   pi0 <- min(1, max(.5, centre / .5))
+  ## E5 undermining (2026-08-29): the two-group model assumes a GAUSSIAN
+  ## null, and a heavy-tailed null (kurtosis, not signal) is read as signal -
+  ## under a pure t5 null the selection arm called false units in 80-100% of
+  ## simulated runs. Kurtosis has a signature real signal rarely has: BOTH
+  ## tails significantly heavier than the fitted Gaussian, in proportion.
+  ## One-sided or shouldered signal leaves at most one tail in excess. When
+  ## both tails exceed their Poisson 99.5% bound the fit is declared
+  ## untrustworthy and NULL is returned - the callers' documented fallback
+  ## to the frequentist arm, a safe failure instead of a silent one.
+  ## Two radii, OR-ed, each at the .95 Poisson bound per tail: BOTH tails
+  ## must be in excess (the symmetry requirement is what protects power -
+  ## one-sided signal loads one tail only), and under a true Gaussian null
+  ## the joint two-tail false-trip is ~2 (0.05)^2 per radius, well under 1%.
+  .trip <- function(r) {
+    lam <- length(z) * stats::pnorm(-r)
+    cut <- stats::qpois(.95, lam)
+    lo <- sum(z < delta - r * sigma0); hi <- sum(z > delta + r * sigma0)
+    lo > cut && hi > cut
+  }
+  if (.trip(2.5) || .trip(3)) {
+    .lo <- sum(z < delta - 3 * sigma0); .hi <- sum(z > delta + 3 * sigma0)
+    warning("dmsa_lfdr: both tails are heavier than the fitted Gaussian ",
+            "null (", .lo, " and ", .hi, " units beyond 3 SD). ",
+            "This is the signature of a heavy-tailed null, ",
+            "which the two-group model would misread as signal. Falling ",
+            "back to the frequentist rule.", call. = FALSE)
+    return(NULL)
+  }
   pi1 <- min(.9, max(.01, (1 - pi0) * prior_odds_multiplier))
   ## slab width by variance matching
   tau2 <- max((stats::var(z) - sigma0^2) / max(pi1, .01), sigma0^2 * .25)
