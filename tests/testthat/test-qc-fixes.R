@@ -14,7 +14,7 @@
 .qc_run <- function(fx, data = fx$data, methylation = fx$cols, ...)
   dmsa_frame(data, methylation = methylation, direction_source = "bundled",
              outcome = "y",
-             covariates = "cov1", random_effects = "cID", chip = FALSE,
+             covariates = "cov1", blocks = "cID", chip = FALSE,
              B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
              progress = FALSE, beep = FALSE, outdir = tempfile("dmsa_qc"), ...)
 
@@ -46,7 +46,7 @@ test_that("a logical outcome runs as 0/1 instead of dissolving into NA", {
   d <- fx$data; d$hit <- d$y > 0
   f <- dmsa_frame(d, methylation = fx$cols, direction_source = "bundled",
                   outcome = "hit",
-                  covariates = "cov1", random_effects = "cID", chip = FALSE,
+                  covariates = "cov1", blocks = "cID", chip = FALSE,
                   B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
                   progress = FALSE, beep = FALSE, outdir = tempfile("qc"))
   expect_s3_class(f, "dmsa_frame")
@@ -142,7 +142,7 @@ test_that("a summary-only report is protected from overwrite too", {
   od <- tempfile("qc_ow")
   f <- dmsa_frame(fx$data, methylation = fx$cols, direction_source = "bundled",
                   outcome = "y",
-                  covariates = "cov1", random_effects = "cID", chip = FALSE,
+                  covariates = "cov1", blocks = "cID", chip = FALSE,
                   B = 19, plots = FALSE, tables = FALSE, summary = TRUE,
                   progress = FALSE, beep = FALSE, outdir = od)
   r1 <- dmsa_report(f)
@@ -157,7 +157,7 @@ test_that("the units table carries per-lens survivor flags and p_unit", {
   set.seed(1); fx <- .qc_fixture()
   f <- dmsa_frame(fx$data, methylation = fx$cols, direction_source = "bundled",
                   outcome = "y",
-                  covariates = "cov1", random_effects = "cID", chip = FALSE,
+                  covariates = "cov1", blocks = "cID", chip = FALSE,
                   B = 19, plots = FALSE, tables = TRUE, summary = FALSE,
                   progress = FALSE, beep = FALSE, table_type = "html",
                   outdir = tempfile("qc27"))

@@ -52,7 +52,7 @@ test_that("spec 39: the system level is SKIPPED, not weighted +1, with no polari
   s <- .pol_sim()
   od <- file.path(tempdir(), paste0("dmsa_pol_", as.integer(runif(1, 1, 1e6))))
   fr <- dmsa_frame(s$data, map = s$map, outcome = "out1",
-                   covariates = c("cov1", "cov2"), random_effects = "cID",
+                   covariates = c("cov1", "cov2"), blocks = "cID",
                    B = 99, seed = 1, outdir = od, plot_type = "png")
   expect_message(r <- dmsa_report(fr), "system level SKIPPED")
   ## the gene level is unaffected - it aligns on d alone and needs no w_g

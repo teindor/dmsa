@@ -15,7 +15,7 @@
 .saf_run <- function(fx, covs = "cov1", re = "cID", data = fx$data)
   dmsa_frame(data, methylation = fx$cols, direction_source = "bundled",
              outcome = "y", covariates = covs,
-             random_effects = re, chip = FALSE, B = 19, plots = FALSE,
+             blocks = re, chip = FALSE, B = 19, plots = FALSE,
              tables = FALSE, summary = FALSE, progress = FALSE, beep = FALSE,
              outdir = tempfile("dmsa_saf"))
 
@@ -116,7 +116,7 @@ test_that("all-singleton blocks that routing cannot rescue name the culprit", {
   e <- expect_error(
     dmsa_frame(d, methylation = fx$cols, direction_source = "bundled",
                outcomes = "y", covariates = "cov1",
-               random_effects = c("rowID", "cID"), chip = FALSE, B = 19,
+               blocks = c("rowID", "cID"), chip = FALSE, B = 19,
                plots = FALSE, tables = FALSE, summary = FALSE,
                progress = FALSE, beep = FALSE, outdir = tempfile("saf_x")))
   msg <- conditionMessage(e)
@@ -147,10 +147,10 @@ test_that("all-singleton blocks that routing cannot rescue name the culprit", {
 test_that("CROSSED factors route: blocks on cID, (1|chip) intercept", {
   set.seed(1)
   fx <- .rt_fix(chip_of_row = rep(1:2, 30))         # partners on DIFFERENT chips
-  f <- .rt_run(fx$d, fx$cols, random_effects = c("cID", "chip_T1"))
+  f <- .rt_run(fx$d, fx$cols, blocks = c("cID", "chip_T1"))
   expect_identical(f$block_cols, "cID")
   expect_true(nzchar(f$chip_random))                # the (1|chip) intercept
-  i <- grep("random_effects", f$corrections$field)
+  i <- grep("blocks", f$corrections$field)
   expect_match(f$corrections$issue[i], "crossed/independent")
   expect_match(f$corrections$issue[i], "\\(1 \\| cID\\) \\+ \\(1 \\| chip_T1\\)")
 })
@@ -158,11 +158,11 @@ test_that("CROSSED factors route: blocks on cID, (1|chip) intercept", {
 test_that("NESTED factors are diagnosed but behaviour is unchanged", {
   set.seed(1)
   fx <- .rt_fix(chip_of_row = rep(1:6, each = 10))  # couples share a chip
-  f <- .rt_run(fx$d, fx$cols, random_effects = c("cID", "chip_T1"),
+  f <- .rt_run(fx$d, fx$cols, blocks = c("cID", "chip_T1"),
                chip = FALSE)
   ## both columns stay in the block (their interaction IS the cID grouping)
   expect_setequal(f$block_cols, c("cID", "chip_T1"))
-  i <- grep("random_effects", f$corrections$field)
+  i <- grep("blocks", f$corrections$field)
   expect_match(f$corrections$issue[i], "nested in")
   expect_match(f$corrections$issue[i], "\\(1 \\| chip_T1/cID\\)")
 })
@@ -172,13 +172,53 @@ test_that("routing refuses a conflicting explicit chip, and 3+ factors", {
   fx <- .rt_fix(chip_of_row = rep(1:2, 30))
   fx$d$plate <- factor(rep(1:4, each = 15))
   expect_error(.rt_run(fx$d, fx$cols,
-                       random_effects = c("cID", "chip_T1"), chip = "plate"),
+                       blocks = c("cID", "chip_T1"), chip = "plate"),
                "already claims that slot")
   expect_error(.rt_run(fx$d, fx$cols,
-                       random_effects = c("cID", "chip_T1", "plate")),
+                       blocks = c("cID", "chip_T1", "plate")),
                "supports two")
   expect_error(.rt_run(fx$d, fx$cols,
-                       random_effects = c("cID", "chip_T1"),
+                       blocks = c("cID", "chip_T1"),
                        chip_effect = "none"),
                "Pick one")
+})
+
+## ---- spec 42 (PI ruling 2026-09-02): blocks =, no default -------------------
+test_that("spec 42: no default blocks - declaring none is said out loud and asked about", {
+  set.seed(1); fx <- .saf_fixture()
+  msgs <- character()
+  f <- withCallingHandlers(
+    .saf_run(fx, re = NULL),
+    message = function(m) { msgs <<- c(msgs, conditionMessage(m))
+                            invokeRestart("muffleMessage") })
+  expect_true(any(grepl("no exchangeability blocks declared \\(blocks = NULL\\)", msgs)))
+  expect_true(any(grepl("Make sure this is intended", msgs)))
+  expect_true(any(grepl("blocks = \"<id column>\"", msgs, fixed = TRUE)))
+  expect_equal(length(f$block_cols), 0L)
+  i <- which(f$corrections$field == "blocks")
+  expect_true(length(i) >= 1L)
+  expect_match(f$corrections$issue[i[1]], "none declared")
+  ## and NOT the old silent default: cID exists in the data but was not used
+  expect_true("cID" %in% names(fx$data))
+})
+
+test_that("spec 42: random_effects = is a deprecated alias of blocks =, and both at once is refused", {
+  set.seed(1); fx <- .saf_fixture()
+  .call <- function(...) dmsa_frame(fx$data, methylation = fx$cols,
+      direction_source = "bundled", outcome = "y", covariates = "cov1",
+      chip = FALSE, B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
+      progress = FALSE, beep = FALSE, outdir = tempfile("dmsa_saf"), ...)
+  msgs <- character()
+  f <- withCallingHandlers(.call(random_effects = "cID"),
+    message = function(m) { msgs <<- c(msgs, conditionMessage(m))
+                            invokeRestart("muffleMessage") })
+  expect_true(any(grepl("`random_effects = ` is deprecated", msgs)))
+  expect_true(any(grepl("Treated as blocks = c\\(\"cID\"\\)", msgs)))
+  expect_identical(f$block_cols, "cID")
+  ## the alias and the real argument are the same frame
+  g <- suppressMessages(.call(blocks = "cID"))
+  expect_identical(g$block_cols, "cID")
+  expect_equal(g$log2_permutations, f$log2_permutations)
+  expect_error(suppressMessages(.call(blocks = "cID", random_effects = "cID")),
+               "give the exchangeability blocks ONCE")
 })

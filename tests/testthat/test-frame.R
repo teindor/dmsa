@@ -51,7 +51,7 @@ test_that("the test drive corrects loudly and the pilot runs", {
   fr <- expect_warning(
     dmsa_frame(s$data, map = s$map, outcome = "out1",
                covariates = c("cov1", "cov2", "cov_dup"),
-               random_effects = "cID", B = 99, seed = 1),
+               blocks = "cID", B = 99, seed = 1),
     regexp = NA)                                       # no warning expected
   expect_s3_class(fr, "dmsa_frame")
   expect_true(any(grepl("aliased", fr$corrections$issue)))
@@ -64,7 +64,7 @@ test_that("the test drive corrects loudly and the pilot runs", {
 test_that("binary outcome under gaussian autofixes to logistic", {
   s <- .sim_frame_data()
   fr <- dmsa_frame(s$data, map = s$map, outcome = "grp",
-                   covariates = c("cov1", "cov2"), random_effects = "cID",
+                   covariates = c("cov1", "cov2"), blocks = "cID",
                    B = 99)
   expect_identical(fr$outcome_type, "logistic")
   ## Assert the CLAIM, not the prose. This used to grep for the literal word
@@ -83,7 +83,7 @@ test_that("a tiny report runs end to end and finds the planted gene", {
   s <- .sim_frame_data()
   od <- file.path(tempdir(), paste0("dmsa_out_", as.integer(runif(1, 1, 1e6))))
   fr <- dmsa_frame(s$data, map = s$map, outcome = "out1",
-                   covariates = c("cov1", "cov2"), random_effects = "cID",
+                   covariates = c("cov1", "cov2"), blocks = "cID",
                    B = 199, seed = 1, outdir = od, plot_type = "png")
   r <- dmsa_report(fr)
   expect_s3_class(r, "dmsa_report")
@@ -104,7 +104,7 @@ test_that("moderation runs composite-only through the new layout", {
   s <- .sim_frame_data()
   od <- file.path(tempdir(), paste0("dmsa_mod_", as.integer(runif(1, 1, 1e6))))
   fr <- dmsa_frame(s$data, map = s$map, outcome = "out1",
-                   covariates = c("cov1", "cov2"), random_effects = "cID",
+                   covariates = c("cov1", "cov2"), blocks = "cID",
                    moderation = TRUE, mod = "m1", B = 99, seed = 1,
                    outdir = od)
   r <- dmsa_report(fr)

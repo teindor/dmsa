@@ -209,6 +209,34 @@ dmsa_sets <- function(x = "alpha", audit = NULL, polarity = NULL,
            "every gene +1, which would silently make every system look purely ",
            "activating.\nFix the table, or pass polarity = NULL to declare ",
            "that you have none.\nNo cascade was built.", call. = FALSE))
+    ## E13 (2026-09-02): on the BUNDLED Alpha cascade a user table MERGES
+    ## with the bundled curation - user rows override gene for gene, the
+    ## curation fills every gene the user did not name - exactly as
+    ## dmsa_align(polarity =) has done since E4. Replacing the whole table
+    ## silently left every unnamed gene without polarity, and the report
+    ## then weighted those genes 0 at the system level with nothing said.
+    ## A user cascade keeps the old meaning: the table IS its polarity.
+    if (isTRUE(is_alpha) && !inherits(polarity, "dmsa_polarity")) {
+      bnd <- tryCatch(dmsa_polarity("alpha"), error = function(e) NULL)
+      if (!is.null(bnd)) {
+        usr <- pol$polarity; bp <- bnd$polarity
+        usr$w_g_source[is.na(usr$w_g_source) | usr$w_g_source == "unstated"] <- "user"
+        usr$grade <- "user"
+        key_u <- paste(usr$system_id, usr$gene)
+        fill <- bp[!paste(bp$system_id, bp$gene) %in% key_u, , drop = FALSE]
+        cols <- union(names(bp), names(usr))
+        for (cn in setdiff(cols, names(usr))) usr[[cn]] <- NA
+        for (cn in setdiff(cols, names(fill))) fill[[cn]] <- NA
+        merged <- rbind(usr[cols], fill[cols])
+        merged <- merged[order(merged$system_id, merged$gene), , drop = FALSE]
+        rownames(merged) <- NULL
+        pol$polarity <- merged
+        pol$name <- sprintf("%s + user overrides (%d gene(s))", bnd$name, nrow(usr))
+        message(sprintf(paste0("dmsa: polarity merged - %d gene(s) from your ",
+                               "table override the bundled Alpha curation, ",
+                               "%d filled from it."), nrow(usr), nrow(fill)))
+      }
+    }
   } else if (isTRUE(is_alpha)) {
     ## keyed on WHERE the cascade came from, not on the display `name` - a
     ## user renaming the bundled cascade must not silently lose its polarity
@@ -877,8 +905,9 @@ dmsa_sets_check <- function(x, verbose = TRUE) {
   }
   p <- pol$polarity
   if (!nrow(p)) return(invisible(NULL))
-  g <- table(factor(p$grade, levels = c("curated", "database", "literature",
-                                        "heuristic", "none", "unstated")))
+  g <- table(factor(p$grade, levels = c("user", "curated", "database",
+                                        "literature", "heuristic", "none",
+                                        "unstated")))
   g <- g[g > 0]
   cat(sprintf("%spolarity: %d signed, %d off-axis (%s)\n", indent,
               sum(p$w_g != 0), sum(p$w_g == 0),

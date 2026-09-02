@@ -1,3 +1,112 @@
+# dmsa 0.99.10
+
+## `blocks =` replaces `random_effects =`, and there is no default (spec 42)
+
+* **The exchangeability blocks are declared with `blocks = `.** The old
+  name `random_effects = ` always meant the blocks - the rows that travel
+  together under permutation - not lme4 random effects; it is kept as a
+  deprecated alias (a message says so), and giving both is an error.
+* **No default blocks (PI ruling, 2026-09-02).** `random_effects = "cID"`
+  used to be the default, which hard-errored on any dataset without that
+  column. Now, if you declare none, `dmsa_frame()` says live that the
+  permutation null treats every row as independent and asks you to make
+  sure that is intended (couples, family members and repeated measures
+  need `blocks = "<id column>"`); the corrections table records "none
+  declared". A block column you DID name but that is missing from the
+  data is still a hard error (spec 43). `covariates = "contract"` carries
+  the Alpha build's block structure and is adopted, with a message, when
+  you give none.
+
+## Unresolved polarity is counted and said; user polarity merges (spec 40, E13)
+
+* **A user polarity table on the bundled Alpha cascade now MERGES.**
+  `dmsa_sets("alpha", polarity = <table>)` used to take the table as the
+  cascade's entire polarity, so a one-gene override left every other gene
+  without a sign, and the report then weighted those genes 0 at the system
+  level with nothing said. It now behaves as `dmsa_align(polarity = )` has
+  since E4: user rows override gene for gene (grade "user"), the curation
+  fills the rest, one message states the counts. A user cascade keeps its
+  own table as its polarity, unchanged.
+* **What the system tone is built from is stated.** Per system:
+  how many testable genes carry a signed polarity, how many are explicitly
+  off-axis, and how many are UNRESOLVED (no entry or NA) - those are
+  weighted 0 in the system score, never assumed +1, and now the frame
+  print says so naming the genes, summary.md states the composition of
+  every system tone, `tables/polarity_audit.csv` lists the per-gene status,
+  and `dmsa_coverage(level = "system")` gains
+  `n_genes_polarity_signed` / `n_genes_polarity_unresolved` /
+  `genes_polarity_unresolved`.
+
+## The statistic columns, labelled (spec 26/28)
+
+* summary.md's reporting block ends with a glossary of every p-value column
+  in `tables/units.csv`: what it tests, which multiplicity it is corrected
+  for, and whether it names a finding. Only the per-lens family-adjusted p
+  names (any lens below alpha within its own family; `selected` is the
+  verdict); the calibrated union and the family-corrected omnibus confirm
+  (the dagger tiers); the raw omnibus and the joint union are synthesis -
+  quoted, never named by.
+
+## Report failures are recorded, never swallowed (spec 53)
+
+* **`tables/qc_report.csv` and a "Report QC" section in summary.md.**
+  Thirteen places in the report used `tryCatch(..., error = function(e)
+  NULL)`: a component that failed simply vanished, and a reader could not
+  tell "absent because not applicable" from "absent because it broke".
+  Every one now goes through a recording wrapper: the failure is logged
+  with its component, outcome, level, unit, what took its place, and the
+  error message; the analysis continues exactly as before. The ledger is
+  always written when tables are on (a header-only file states that
+  nothing failed), listed in summary.md, counted once on the console, and
+  carried on the report object as `$qc`. Fallbacks that were already
+  announced - the locus panel's bare-panel fallback, a gene model that
+  could not be fetched - are recorded too, as "fell back".
+
+## The locus panel draws the tested estimator (spec 52)
+
+* **One estimator for the figure and the test.** The locus panel's per-probe
+  bars used to come from a report-side least-squares fit of each probe's
+  raw M-value on the outcome, while the gene test pooled per-probe fits of
+  the winsorised, standardised probe on the standardised term (with the
+  random-intercept transform when a chip was declared random). Two
+  estimators, one figure, no label. `dmsa_triangulate()` now hands its own
+  per-probe fits over (`attr(., "probe_fits")`: column, b, se, plus the
+  residual df and the RI gamma), the panel draws exactly those, the
+  greying p is the nominal p of that same fit, and the panel's context line
+  says so. The raw-M OLS remains only as a labelled fallback for a panel
+  drawn without a test.
+* **`tables/locus_probes.csv`** lists every number a locus panel drew - one
+  row per probe with b, se, z, nominal p, the estimator and its scale - so
+  figure and test can be audited against each other row by row; summary.md
+  points to it.
+
+## Regression tests for the lenses, custom polarity and the display rules (spec 62/63/67)
+
+* **The three lenses are now tested separately** (`test-lenses-separate.R`).
+  Planted shapes calibrated by simulation pick out a lens by its own
+  definition: a sign-cancelling signal is seen by the diffuse lens alone; a
+  dense, tiny, consistent signal by the directional lenses and not the
+  diffuse one; pure noise by none. At the report level the same shapes pin
+  the carrying-lens label in `units.csv` and the "carried by the ... lens"
+  sentence in summary.md - the sentence that goes into papers.
+* **A user polarity table runs end to end** (`test-polarity-custom.R`):
+  flipping every gene's polarity mirrors the system level exactly (opposite
+  direction, identical p under the same seed - a RULE ZERO invariant);
+  polarity touches only the system level (gene and probe results are
+  identical between runs); the frame carries the user's table gene for
+  gene; and each `missing_polarity` policy does what it says.
+* **The moderation display rules are pinned** (`test-figure-displays.R`):
+  a two-level moderator draws one panel with each level's own b and p in
+  the legend and no Johnson-Neyman continuum; a two-level outcome is shown
+  as fitted probabilities on the log-odds scale; a continuous moderator
+  keeps the quantile ladder and the JN band; the overview carries only its
+  title. Figures are read back from uncompressed PDF text, so the tests
+  assert on what the figure says, not on pixels.
+* **summary.md is written as UTF-8 in every locale.** Under a C/POSIX
+  locale the badge daggers came out as `<U+2020>` / `<U+2021>`;
+  `writeLines()` translates to the native encoding first, even through a
+  UTF-8 connection, so the bytes are now written as they are.
+
 # dmsa 0.99.9
 
 ## The all-one-direction note tells the user where to check

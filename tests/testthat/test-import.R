@@ -176,7 +176,7 @@ test_that("dmsa_frame() accepts a dmsa_import object end to end", {
   imp <- dmsa_import(B, pheno = ph)
   expect_equal(dim(imp$methylation), c(n, nrow(map)))
   fr <- dmsa_frame(imp, map = map, outcome = "out1", covariates = "cov1",
-                   random_effects = "cID", B = 99, plots = FALSE,
+                   blocks = "cID", B = 99, plots = FALSE,
                    tables = FALSE, summary = FALSE,
                    outdir = tempfile("dmsa_imp"))
   expect_s3_class(fr, "dmsa_frame")

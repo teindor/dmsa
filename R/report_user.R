@@ -148,8 +148,9 @@
       ## `.mc:.sq`, not `.sq:.mc`, and guessing wrong makes dmsa_model() throw -
       ## which, swallowed by a tryCatch, would silently produce NA.
       want <- if (is.null(m2c)) c(".sq", ".mc") else c(".sq", ".mc", ".m2c")
-      cn <- tryCatch(colnames(stats::model.matrix(ffq, stats::model.frame(
-              ffq, d2, na.action = stats::na.omit))), error = function(e) NULL)
+      cn <- .rp_try("moderation: quadratic design", colnames(stats::model.matrix(
+              ffq, stats::model.frame(ffq, d2, na.action = stats::na.omit))),
+              outcome = oc, fallback = "quadratic moderation term not tested")
       tq <- NULL
       if (!is.null(cn)) {
         parts <- strsplit(cn, ":", fixed = TRUE)
@@ -235,9 +236,9 @@
     ff <- stats::as.formula(paste(oc, "~ S",
                                   if (nzchar(extra)) paste("+", extra) else "",
                                   rhs))
-    tryCatch(dmsa_model(ff, d, term, block = frame$block, B = B,
-                        seed = frame$seed, nulls = nulls),
-             error = function(e) NULL)
+    .rp_try("moderation: model", dmsa_model(ff, d, term, block = frame$block,
+                        B = B, seed = frame$seed, nulls = nulls),
+            outcome = oc, fallback = "unit dropped from the moderation table")
   }
   gp <- function(f) if (is.null(f)) NA_real_ else f$p_perm
   f_lin  <- fit1("", "S")
@@ -334,9 +335,9 @@
 .report_shape_family <- function(frame, oc, units_list, family_label, level) {
   rows <- list(); nulls <- list()
   for (u in names(units_list)) {
-    o <- tryCatch(.report_shape(frame, oc, units_list[[u]]$columns,
+    o <- .rp_try("shape scan: unit", .report_shape(frame, oc, units_list[[u]]$columns,
                                 units_list[[u]]$alignment, nulls = TRUE),
-                  error = function(e) NULL)
+                 outcome = oc, unit = u, fallback = "unit absent from the shape table")
     if (is.null(o)) next
     g <- function(nm) if (is.null(o[[nm]])) NA else unname(o[[nm]])
     rows[[u]] <- data.frame(
@@ -513,11 +514,11 @@
 ## ---- brain bridge (always on, never fatal) --------------------------------
 .report_bridge <- function(probes) {
   if (!length(probes)) return(list(status = "no surviving probes", table = NULL))
-  br <- tryCatch({
+  br <- .rp_try("brain bridge", {
     .bridge <- .cpgd("cpg_brain_bridge")
     if (is.null(.bridge)) stop("cpgdirection not installed")
     as.data.frame(.bridge(unique(probes), tissue = "blood"))
-  }, error = function(e) NULL)
+  }, fallback = "bridge line reads 'bridge check unavailable'")
   if (is.null(br)) return(list(status = "bridge check unavailable", table = NULL))
   hit <- vapply(seq_len(nrow(br)), function(i)
     isTRUE(br$bridge_usable[i]) || isTRUE(br$has_t2_direction[i]) ||
@@ -728,6 +729,51 @@
 ## Report-scoped state. Only use: say the "gt is missing" line once per
 ## dmsa_report() call rather than once per table.
 .rp_env <- new.env(parent = emptyenv())
+
+## ---- spec 53: report QC ledger ---------------------------------------------
+## A report component that fails must not become a hole. Every place where a
+## component used to be swallowed by tryCatch(..., error = function(e) NULL)
+## now goes through .rp_try(): the failure is RECORDED (component, where,
+## what it fell back to, the message), the analysis continues exactly as
+## before, and at the end the ledger is written to tables/qc_report.csv,
+## listed in summary.md and counted once on the console. A user can then
+## tell "absent because not applicable" from "absent because it broke".
+.rp_qc <- new.env(parent = emptyenv())
+.rp_qc_reset <- function() assign("rows", list(), envir = .rp_qc)
+.rp_qc_note <- function(component, message, outcome = NA_character_,
+                        level = NA_character_, unit = NA_character_,
+                        fallback = NA_character_, severity = "failed") {
+  rows <- if (exists("rows", envir = .rp_qc, inherits = FALSE))
+    get("rows", envir = .rp_qc) else list()
+  rows[[length(rows) + 1L]] <- data.frame(
+    component = as.character(component), severity = as.character(severity),
+    outcome = as.character(outcome), level = as.character(level),
+    unit = as.character(unit), fallback = as.character(fallback),
+    message = gsub("[\r\n]+", " ", as.character(message)),
+    stringsAsFactors = FALSE)
+  assign("rows", rows, envir = .rp_qc)
+  invisible(NULL)
+}
+.rp_qc_rows <- function() {
+  rows <- if (exists("rows", envir = .rp_qc, inherits = FALSE))
+    get("rows", envir = .rp_qc) else list()
+  if (!length(rows))
+    return(data.frame(component = character(0), severity = character(0),
+                      outcome = character(0), level = character(0),
+                      unit = character(0), fallback = character(0),
+                      message = character(0), stringsAsFactors = FALSE))
+  out <- do.call(rbind, rows); rownames(out) <- NULL; out
+}
+## evaluate `expr`; on error record it in the ledger and return NULL
+.rp_try <- function(component, expr, outcome = NA_character_,
+                    level = NA_character_, unit = NA_character_,
+                    fallback = NA_character_) {
+  tryCatch(expr, error = function(e) {
+    .rp_qc_note(component, conditionMessage(e), outcome = outcome,
+                level = level, unit = unit, fallback = fallback)
+    NULL
+  })
+}
 
 .rp_write_table <- function(df, file, frame, title = "") {
   utils::write.csv(df, paste0(file, ".csv"), row.names = FALSE)
@@ -945,13 +991,40 @@
 }
 
 ## locus panel per surviving gene
-.rp_fig_locus <- function(frame, oc, sid, gene, dir_ok, file) {
+.rp_fig_locus <- function(frame, oc, sid, gene, dir_ok, file, fits = NULL) {
   s <- frame$sets[[as.character(sid)]]
   gmap <- s$map[s$map$gene == gene, , drop = FALSE]
   if (!nrow(gmap)) return(invisible(NULL))
-  f <- .rp_probe_fits(frame, oc, gmap$column)
-  pr <- data.frame(probe = gmap$probe, b = f$b, se = f$se, p = f$p,
-                   d = gmap$best_direction, stringsAsFactors = FALSE)
+  ## spec 52: ONE estimator for the figure and the test. The gene test pooled
+  ## per-probe fits of the WINSORISED, STANDARDISED, covariate-adjusted (and,
+  ## when a random intercept was declared, RI-transformed) probe on the term;
+  ## those b/se are what the panel draws when the engine handed them over
+  ## (attr "probe_fits" of the gene-level triangulation). The nominal p that
+  ## greys a probe comes from that same fit. The report-side OLS on raw
+  ## M-values is now only the fallback for a panel drawn without a test.
+  .ix <- if (!is.null(fits)) match(gmap$column, fits$column) else NA_integer_
+  if (!is.null(fits) && !anyNA(.ix)) {
+    .dfr <- attr(fits, "dfr") %||% (nrow(frame$data) - 2L)
+    b <- fits$b[.ix]; se <- fits$se[.ix]
+    pr <- data.frame(probe = gmap$probe, b = b, se = se,
+                     p = 2 * stats::pt(-abs(b / se), df = .dfr),
+                     d = gmap$best_direction, stringsAsFactors = FALSE)
+    .est <- "engine"
+  } else {
+    f <- .rp_probe_fits(frame, oc, gmap$column)
+    pr <- data.frame(probe = gmap$probe, b = f$b, se = f$se, p = f$p,
+                     d = gmap$best_direction, stringsAsFactors = FALSE)
+    .est <- "ols_fallback"
+  }
+  .rows <- data.frame(outcome = oc, system_id = s$system_id %||% as.character(sid),
+                      gene = gene,
+                      probe = pr$probe, column = gmap$column, d = pr$d,
+                      b = pr$b, se = pr$se, z = pr$b / pr$se, p_nominal = pr$p,
+                      estimator = .est,
+                      scale = if (.est == "engine")
+                        "winsorised + standardised M per SD of the term (the test's own per-probe fit)" else
+                        "raw M (report OLS; no test ran for this panel)",
+                      stringsAsFactors = FALSE)
   ## Gene-level significance CAN come with no individually significant CpG -
   ## the lenses pool small direction-consistent shifts, so evidence
   ## accumulates at the gene even when every CpG sits below the noise line.
@@ -959,7 +1032,10 @@
   ## it happens the panel says so under its own title instead of leaving the
   ## reader to reconcile "significant gene" with "no significant probe".
   .none <- !any(is.finite(pr$p) & pr$p < frame$alpha)
-  .ctx <- .lab(frame, oc)
+  .ctx <- paste0(.lab(frame, oc),
+                 if (.est == "engine")
+                   " - bars: the gene test's own per-probe fit (winsorised, standardised M)"
+                 else " - bars: report-side OLS on raw M (no test ran here)")
   if (.none)
     .ctx <- sprintf(paste0("%s - no single CpG clears p < %.2g on its own ",
                            "(grey): the gene-level result pools small, ",
@@ -972,9 +1048,10 @@
   ## an hg19 probe with an hg38 exon puts a CpG ~19 kb from its own gene
   ## without either layer being wrong on its own.
   pos <- NULL
-  cas <- tryCatch(dmsa_sets(if (is.null(frame$sets_source)) "alpha"
+  cas <- .rp_try("locus: cascade coordinates", dmsa_sets(if (is.null(frame$sets_source)) "alpha"
                             else frame$sets_source)$cascade,
-                  error = function(e) NULL)
+                 outcome = oc, level = "gene", unit = gene,
+                 fallback = "manifest coordinates, else evenly spaced probes")
   if (!is.null(cas) && all(c("cpg", "pos_hg38") %in% names(cas))) {
     i <- match(gmap$probe, cas$cpg)
     if (sum(!is.na(i)) == length(i)) {
@@ -985,7 +1062,9 @@
     }
   }
   if (is.null(pos)) {
-    co <- tryCatch(dmsa_probe_coords(gmap$probe), error = function(e) NULL)
+    co <- .rp_try("locus: manifest coordinates", dmsa_probe_coords(gmap$probe),
+                  outcome = oc, level = "gene", unit = gene,
+                  fallback = "probes evenly spaced")
     if (!is.null(co) && all(c("probe", "pos") %in% names(co)))
       pr <- merge(pr, co[, intersect(c("probe", "chrom", "pos"), names(co))],
                   by = "probe", all.x = TRUE)
@@ -1006,13 +1085,20 @@
     ## only - this function is only ever called for them - and a failed
     ## fetch degrades to the bare coordinate axis with a message instead of
     ## quietly dropping the exon view (PI, 2026-08-29)
+    .gerr <- NULL
     .g <- tryCatch(dmsa_gene_model(gene, quiet = TRUE),
-                   error = function(e) NULL)
-    if (is.null(.g) || (is.data.frame(.g) && !nrow(.g)))
+                   error = function(e) { .gerr <<- conditionMessage(e); NULL })
+    if (is.null(.g) || (is.data.frame(.g) && !nrow(.g))) {
+      ## spec 53: a missing exon model is a recorded fallback, not a hole
+      .rp_qc_note("locus: gene model (Ensembl)",
+                  .gerr %||% "fetch returned no model", outcome = oc,
+                  level = "gene", unit = gene, severity = "fell back",
+                  fallback = "coordinate axis without exons")
       message("gene model for ", gene, " could not be fetched from Ensembl ",
               "(offline?); the locus panel keeps true coordinates but ",
               "cannot draw the exons. dmsa_gene_model() built once and ",
               "passed as gene_models = <table> works offline.")
+    }
     .g
   } else if (.no_net || isFALSE(frame$gene_models) ||
              identical(frame$gene_models, "auto")) NULL else
@@ -1034,6 +1120,9 @@
   }, error = function(e) {
     message("full locus panel for ", gene, " failed (",
             conditionMessage(e), "); drawing the bare panel instead")
+    .rp_qc_note("figure: locus panel (full)", conditionMessage(e), outcome = oc,
+                level = "gene", unit = gene, severity = "fell back",
+                fallback = "bare panel drawn (probes evenly spaced, no model)")
     FALSE
   })
   if (!ok)
@@ -1047,9 +1136,11 @@
     }, error = function(e) {
       message("locus panel for ", gene, " could not be drawn at all: ",
               conditionMessage(e))
+      .rp_qc_note("figure: locus panel", conditionMessage(e), outcome = oc,
+                  level = "gene", unit = gene, fallback = "no locus figure")
       FALSE
     })
-  if (ok) invisible(file) else invisible(NULL)
+  if (ok) invisible(structure(file, probe_rows = .rows)) else invisible(NULL)
 }
 
 ## ---- progress and completion signal ---------------------------------------
@@ -1210,6 +1301,11 @@ dmsa_report <- function(frame, progress = NULL, beep = NULL,
            "No report was written.", call. = FALSE)
   }
   all_res <- list(); mod_res <- list(); shape_rows <- list()
+  ## spec 52: the per-probe fits each gene test was built from (one
+  ## data.frame per outcome x system), so the locus panel draws the
+  ## test's own numbers; and the rows every locus panel actually drew
+  probe_fits <- list(); locus_rows <- list()
+  .rp_qc_reset()   # spec 53: fresh ledger per run
   sys_skip <- FALSE   # set when the system level is skipped for missing polarity
   bar <- .rp_bar(.rp_work(frame, levels_on) + 2L, on = progress)
   on.exit({ try(bar$done(), silent = TRUE); .rp_beep(beep) }, add = TRUE)
@@ -1258,11 +1354,13 @@ dmsa_report <- function(frame, progress = NULL, beep = NULL,
               "predictor of methylation, not a response.")
     } else if (frame$type != "linear") {
       for (lv in intersect(levels_on, c("system", "module", "gene", "probe"))) {
-        ul <- tryCatch(.rp_units(frame, lv), error = function(e) NULL)
+        ul <- .rp_try("shape scan: units", .rp_units(frame, lv), outcome = oc,
+                      level = lv, fallback = "level absent from the shape scan")
         if (is.null(ul)) next
         for (fam in names(ul)) {
-          sr <- tryCatch(.report_shape_family(frame, oc, ul[[fam]], fam, lv),
-                         error = function(e) NULL)
+          sr <- .rp_try("shape scan: family", .report_shape_family(frame, oc, ul[[fam]], fam, lv),
+                        outcome = oc, level = lv, unit = fam,
+                        fallback = "family absent from the shape scan")
           if (!is.null(sr)) shape_rows[[paste(oc, lv, fam)]] <- sr
         }
       }
@@ -1308,6 +1406,7 @@ dmsa_report <- function(frame, progress = NULL, beep = NULL,
     if ("gene" %in% levels_on) {
       for (sid in names(frame$sets)) {
         r <- .report_gene_level(frame, oc, sid)
+        probe_fits[[paste(oc, sid)]] <- attr(r, "probe_fits")
         r$level <- "gene"
         all_res[[paste(oc, "gene", sid)]] <- r
         bar$tick()
@@ -1486,10 +1585,16 @@ dmsa_report <- function(frame, progress = NULL, beep = NULL,
     for (i in seq_len(nrow(hits))) {
       fp <- file.path(outdir, "figures",
                       paste0("locus_", hits$unit[i], "_", hits$outcome[i]))
-      if (!is.null(.rp_fig_locus(frame, hits$outcome[i], hits$system_id[i],
-                                 hits$unit[i], TRUE, fp)))
+      .lf <- .rp_fig_locus(frame, hits$outcome[i], hits$system_id[i],
+                           hits$unit[i], TRUE, fp,
+                           fits = probe_fits[[paste(hits$outcome[i],
+                                                    hits$system_id[i])]])
+      if (!is.null(.lf)) {
         figs <- c(figs, paste0(fp, ".", frame$plot_type))
-      else locus_fail <- c(locus_fail,
+        if (!is.null(attr(.lf, "probe_rows")))
+          locus_rows[[paste(hits$outcome[i], hits$unit[i])]] <-
+            attr(.lf, "probe_rows")
+      } else locus_fail <- c(locus_fail,
                            sprintf("%s (%s)", hits$unit[i],
                                    .lab(frame, hits$outcome[i])))
       ## A binary outcome is non-linear by construction, so every surviving unit
@@ -1500,11 +1605,13 @@ dmsa_report <- function(frame, progress = NULL, beep = NULL,
                         paste0("response_",
                                .rp_unit_file(frame, hits$unit[i], "gene"),
                                "_", hits$outcome[i]))
-        r <- tryCatch(.rp_fig_binary(frame, hits$outcome[i], "gene",
-                                     hits$family[i] %||%
-                                       as.character(hits$system[i]),
-                                     hits$unit[i], fb),
-                      error = function(e) NULL)
+        r <- .rp_try("figure: response curve",
+                     .rp_fig_binary(frame, hits$outcome[i], "gene",
+                                    hits$family[i] %||%
+                                      as.character(hits$system[i]),
+                                    hits$unit[i], fb),
+                     outcome = hits$outcome[i], level = "gene",
+                     unit = hits$unit[i], fallback = "no response-curve figure")
         if (!is.null(r)) figs <- c(figs, paste0(fb, ".", frame$plot_type))
       }
     }
@@ -1528,8 +1635,10 @@ dmsa_report <- function(frame, progress = NULL, beep = NULL,
       ## companion surface for a moderated non-linear model
       fps <- sub("^moderation_", "surface_", basename(fp))
       fps <- file.path(dirname(fp), fps)
-      if (!is.null(tryCatch(.rp_fig_surface(frame, mh[i, ], fps),
-                            error = function(e) NULL)))
+      if (!is.null(.rp_try("figure: moderation surface",
+                           .rp_fig_surface(frame, mh[i, ], fps),
+                           outcome = mh$outcome[i], level = mh$level[i],
+                           unit = mh$unit[i], fallback = "no surface figure")))
         figs <- c(figs, paste0(fps, ".", frame$plot_type))
     }
   }
@@ -1606,6 +1715,28 @@ dmsa_report <- function(frame, progress = NULL, beep = NULL,
                               frame$type))
       tabs <- c(tabs, file.path(outdir, "tables", "shape"))
     }
+    ## spec 52: the numbers every locus panel drew, so figure and test can
+    ## be audited against each other row by row
+    if (length(locus_rows)) {
+      .lr <- do.call(rbind, locus_rows); rownames(.lr) <- NULL
+      utils::write.csv(.lr, file.path(outdir, "tables", "locus_probes.csv"),
+                       row.names = FALSE)
+      tabs <- c(tabs, file.path(outdir, "tables", "locus_probes"))
+    }
+    ## spec 40: per-gene polarity status behind every system score
+    .pa_t <- .rp_polarity_audit(frame)
+    if (!is.null(.pa_t) && isTRUE(attr(.pa_t, "has_polarity"))) {
+      utils::write.csv(.pa_t, file.path(outdir, "tables", "polarity_audit.csv"),
+                       row.names = FALSE)
+      tabs <- c(tabs, file.path(outdir, "tables", "polarity_audit"))
+    }
+    ## spec 53: the QC ledger is ALWAYS written when tables are on - a
+    ## header-only file states "nothing failed" as plainly as rows state
+    ## what did. Written here, after every figure and table above it.
+    utils::write.csv(.rp_qc_rows(),
+                     file.path(outdir, "tables", "qc_report.csv"),
+                     row.names = FALSE)
+    tabs <- c(tabs, file.path(outdir, "tables", "qc_report"))
     if (!is.null(probe_res)) {
       .rp_write_table(probe_res, file.path(outdir, "tables", "probes"),
                       frame, "DMSA - probe level within surviving genes")
@@ -1759,7 +1890,7 @@ dmsa_report <- function(frame, progress = NULL, beep = NULL,
                                    character(1))) %in% locus_fail)
         if (any(.drawn))
           md <- c(md, "", sprintf(
-            "Each named gene has its locus panel: %s.",
+            "Each named gene has its locus panel: %s. The bars in panel C are the gene test's own per-probe estimates (winsorised, standardised methylation per SD of the tested term - the same preprocessing, adjustment and random-intercept transform as the test); the numbers drawn are in `tables/locus_probes.csv`, one row per probe, so figure and test can be checked against each other.",
             paste(sprintf("`figures/locus_%s_%s.%s`", hits$unit[.drawn],
                           hits$outcome[.drawn], frame$plot_type),
                   collapse = ", ")))
@@ -1869,6 +2000,28 @@ dmsa_report <- function(frame, progress = NULL, beep = NULL,
                               sysr$p_unit_adj),
                       collapse = "; ")))
       }
+    }
+    ## spec 40: say what the system tone was built from - a system score
+    ## from 30 of 41 testable genes must not read like one from 41
+    .pa <- .rp_polarity_audit(frame)
+    if (!is.null(.pa) && isTRUE(attr(.pa, "has_polarity")) &&
+        "system" %in% levels_on && !sys_skip) {
+      md <- c(md, "", sprintf(paste0(
+        "System-level composition (spec 40): %s. A gene with unresolved ",
+        "polarity has no curated activation sign and is weighted 0 in the ",
+        "system score - it is NOT assumed +1; it simply does not contribute. ",
+        "Full per-gene status: tables/polarity_audit.csv."),
+        paste(sprintf("%s - tone built from %d of %d testable gene(s)%s%s",
+                      .pa$system, .pa$n_polarity_signed, .pa$n_genes_testable,
+                      ifelse(.pa$n_polarity_off_axis > 0,
+                             sprintf(", %d explicitly off-axis (w_g = 0)",
+                                     .pa$n_polarity_off_axis), ""),
+                      ifelse(.pa$n_polarity_unresolved > 0,
+                             sprintf(", %d with UNRESOLVED polarity (%s)",
+                                     .pa$n_polarity_unresolved,
+                                     gsub(";", ", ", .pa$genes_unresolved)),
+                             "")),
+              collapse = "; ")))
     }
     md <- c(md, "", sprintf("Brain bridge: %s.", bridge$status), "")
     ## The shape scan, said out loud. It used to be computed and discarded, so a
@@ -2035,12 +2188,38 @@ dmsa_report <- function(frame, progress = NULL, beep = NULL,
                 if (mm < 1) sprintf("%d s", round(mm * 60)) else
                   sprintf("%.1f min", mm),
                 if (!is.null(frame$pilot)) frame$pilot$eta_minutes else NA) })
+    ## spec 53: report QC - every component that failed or fell back, named,
+    ## so an absent section is never mistaken for "not applicable"
+    .qc <- .rp_qc_rows()
+    md <- c(md, "", "## Report QC", "",
+            if (!nrow(.qc))
+              "No report component failed or fell back in this run."
+            else c(sprintf(paste0("%d report component(s) failed or fell back ",
+                                  "(full ledger: `tables/qc_report.csv`). The ",
+                                  "analysis itself is unaffected; each line says ",
+                                  "what is missing and what took its place."),
+                           nrow(.qc)), "",
+                   sprintf("- **%s** (%s%s%s): %s. Fallback: %s. Message: %s",
+                           .qc$component, .qc$severity,
+                           ifelse(is.na(.qc$unit), "", paste0("; ", .qc$unit)),
+                           ifelse(is.na(.qc$outcome), "",
+                                  paste0("; ", vapply(.qc$outcome, function(.o)
+                                    if (is.na(.o)) "" else .lab(frame, .o),
+                                    character(1)))),
+                           ifelse(.qc$severity == "failed",
+                                  "not produced", "degraded"),
+                           ifelse(is.na(.qc$fallback), "none", .qc$fallback),
+                           .qc$message)))
     ## the reporting block goes LAST, so it reads as the take-away rather than
     ## as another section of diagnostics
     md <- c(md, if (frame$moderation && !is.null(MOD))
                   .rp_mod_block(frame, MOD, nrow(frame$data))
                 else .rp_report_block(frame, RES, nrow(frame$data), SHAPE))
-    writeLines(md, smy)
+    ## summary.md is UTF-8 whatever the session locale: the badge daggers
+    ## (\u2020 / \u2021) were written as "<U+2020>" under a C/POSIX locale,
+    ## because writeLines() translates to the native encoding first - even
+    ## through a UTF-8 connection. useBytes writes the UTF-8 bytes as they are.
+    writeLines(enc2utf8(md), smy, useBytes = TRUE)
   }
 
   ## Say where the output went, every time, whether or not the result is
@@ -2067,9 +2246,17 @@ dmsa_report <- function(frame, progress = NULL, beep = NULL,
                   normalizePath(outdir, winslash = "/", mustWork = FALSE),
                   length(figs), length(tabs),
                   if (frame$summary) ", summary.md" else ""))
+  .qc_final <- .rp_qc_rows()
+  if (nrow(.qc_final))
+    message(sprintf(paste0("  %d report component(s) failed or fell back - ",
+                           "see tables/qc_report.csv%s (the analysis itself ",
+                           "is unaffected)"),
+                    nrow(.qc_final),
+                    if (frame$summary) " and the 'Report QC' section of summary.md"
+                    else ""))
 
   structure(list(results = RES, moderation = MOD, shape = SHAPE,
-                 probes = probe_res,
+                 probes = probe_res, qc = .rp_qc_rows(),
                  bridge = bridge, figures = figs, tables = tabs,
                  summary = if (frame$summary) smy else NULL,
                  outdir = outdir, frame_args = frame[c(
@@ -2148,6 +2335,38 @@ dmsa_report <- function(frame, progress = NULL, beep = NULL,
 }
 
 ## the system-level frame: all chosen systems' probes, units = system,
+## spec 40: what the system-level tone is actually built from. Per analysed
+## system: the testable genes, how many carry a signed polarity, how many
+## are explicitly off-axis (w_g = 0) and how many are UNRESOLVED (no entry,
+## or NA) - those last are weighted 0 by .rp_system_frame() and therefore
+## drop out of the system score, which must be said, not implied.
+.rp_polarity_audit <- function(frame) {
+  mp <- frame$map
+  if (is.null(mp) || !nrow(mp)) return(NULL)
+  pol <- frame$polarity_table
+  if (inherits(pol, "dmsa_polarity")) pol <- pol$polarity
+  pol <- if (is.null(pol)) NULL else as.data.frame(pol)
+  ok <- !is.null(pol) && all(c("system_id", "gene", "w_g") %in% names(pol))
+  g <- unique(mp[, c("system_id", "system", "gene")])
+  key <- paste(g$system_id, g$gene)
+  w <- if (ok) pol$w_g[match(key, paste(pol$system_id, pol$gene))] else
+    rep(NA_real_, nrow(g))
+  g$status <- ifelse(is.na(w), "unresolved", ifelse(w == 0, "off_axis", "signed"))
+  sp <- split(g, as.character(g$system_id))
+  out <- do.call(rbind, lapply(sp, function(d) data.frame(
+    system_id = as.character(d$system_id[1]), system = d$system[1],
+    n_genes_testable = nrow(d),
+    n_polarity_signed = sum(d$status == "signed"),
+    n_polarity_off_axis = sum(d$status == "off_axis"),
+    n_polarity_unresolved = sum(d$status == "unresolved"),
+    genes_unresolved = paste(sort(d$gene[d$status == "unresolved"]),
+                             collapse = ";"),
+    stringsAsFactors = FALSE)))
+  rownames(out) <- NULL
+  attr(out, "has_polarity") <- ok
+  out
+}
+
 ## alignment weighted by curated polarity where available
 .rp_system_frame <- function(frame) {
   mp <- frame$map
@@ -2416,7 +2635,9 @@ print.dmsa_report <- function(x, ...) {
   m2 <- try(stats::glm(f2, dd, family = stats::binomial()), silent = TRUE)
   if (inherits(m1, "try-error") || inherits(m2, "try-error"))
     return(invisible(NULL))
-  lrt <- tryCatch(stats::anova(m1, m2, test = "LRT"), error = function(e) NULL)
+  lrt <- .rp_try("response curve: likelihood-ratio test",
+                 stats::anova(m1, m2, test = "LRT"),
+                 fallback = "curve drawn without the LRT line")
   p_curv <- if (is.null(lrt)) NA_real_ else lrt[["Pr(>Chi)"]][2]
 
   ## predicted probability across the score, covariates held at their means
@@ -3171,7 +3392,7 @@ print.dmsa_report <- function(x, ...) {
           "level: a positive score means the set's methylation pattern is",
           "consistent with higher expression of its member genes, whichever",
           "way the individual probes moved."), "")
-  out
+  c(out, .rp_column_glossary(frame))
 }
 
 ## The shape scan's own Results and Methods prose. Without this, a run with
@@ -3344,7 +3565,7 @@ print.dmsa_report <- function(x, ...) {
         frame$weighting %||% "combined", h$n_probes, h$concordance,
         h$p_omnibus, h$p_omnibus_adj %||% NA_real_,
         if (h$omnibus_confirmed %in% TRUE)
-          " - an exact family-wise claim resting on all three lenses agreeing"
+          " - an exact family-wise claim from the three lenses COMBINED (ACAT rewards agreement between lenses but does not require it; one dominant lens can carry it)"
         else "",
         h$p_union_exact %||% NA_real_,
         if (h$exact_confirmed %in% TRUE)
@@ -3424,7 +3645,36 @@ print.dmsa_report <- function(x, ...) {
           "negative direction means the observed methylation pattern is",
           "consistent with lower expression of the unit, whichever way the",
           "individual probes moved."), "")
-  c(out, .rp_shape_report(frame, SHAPE, n_used))
+  c(out, .rp_shape_report(frame, SHAPE, n_used), .rp_column_glossary(frame))
+}
+
+## spec 26/28: what every statistic column in tables/units.csv IS, which
+## multiplicity it is corrected for, and - the point - whether it NAMES a
+## finding. Only the per-lens family-adjusted p names (the any-lens rule);
+## the union and omnibus tiers confirm; everything else is synthesis a
+## reader may quote but must not mistake for a verdict.
+.rp_column_glossary <- function(frame) {
+  a <- frame$alpha %||% .05
+  c("", "### The statistic columns, and which of them name a finding", "",
+    paste0("`tables/units.csv` carries one row per unit and level. Read the ",
+           "p-value columns with these roles in mind (alpha = ", format(a), "):"),
+    "",
+    "| column | what it tests | corrected for | names a finding? |",
+    "|---|---|---|---|",
+    "| `p_coherence`, `p_composite`, `p_diffuse` | one lens each, raw permutation p | nothing (per-unit) | no - raw |",
+    "| `p_coherence_adj`, `p_composite_adj`, `p_diffuse_adj` | the same lens, family-adjusted | the unit's level-local family (maxT/minP within that lens) | **YES - the naming statistic.** A unit is named when ANY of the three is below alpha (the pre-registered any-lens rule); `best_lens` says which carried it |",
+    "| `selected_coherence`, `selected_composite`, `selected_diffuse`, `n_lenses_hit`, `any_lens_hit`, `selected` | the naming rule spelled out per lens; `selected` = `any_lens_hit` | - | `selected` IS the verdict |",
+    "| `fwer_realized` | the realized family-wise error of the any-lens rule in this family, measured from this run's permutations | - | no - the disclosure that accompanies naming |",
+    "| `p_union_exact` | second-level Westfall-Young calibration of the best lens | lenses AND family, exactly | no - CONFIRMS a named unit (dagger, `exact_confirmed`) |",
+    "| `p_omnibus` | ACAT combination of the three raw lens p's | lenses only (one valid combined test); NOT the family | no - optional synthesis; never a verdict on its own |",
+    "| `p_omnibus_adj` | permutation minP of the omnibus across the family | lenses AND family, exactly | no - CONFIRMS a named unit (double dagger, `omnibus_confirmed`) |",
+    "| `p_unit`, `p_unit_adj` | the joint max-over-lenses statistic, raw and family-adjusted (the exact-alpha union test) | family (joint) | no - optional synthesis, kept as an honesty line; it does not gate naming |",
+    "",
+    paste("So: name by `selected` (any lens below alpha within its own family),",
+          "report the carrying lens and its adjusted p, disclose",
+          "`fwer_realized`, and add the dagger tiers where they hold. The",
+          "omnibus and the joint union are synthesis - quote them, do not",
+          "name by them."), "")
 }
 
 ## What the model was actually adjusted for, in one sentence. Used by the

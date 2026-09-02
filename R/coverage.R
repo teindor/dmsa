@@ -100,6 +100,15 @@ dmsa_coverage <- function(frame, level = c("system", "gene", "pairs")) {
   }))
   out <- out[order(out$system_id), , drop = FALSE]
   rownames(out) <- NULL
+  ## spec 40: polarity coverage per system - how many of the testable genes
+  ## carry a signed activation polarity, and how many are unresolved
+  .pa <- tryCatch(.rp_polarity_audit(frame), error = function(e) NULL)
+  if (!is.null(.pa) && isTRUE(attr(.pa, "has_polarity"))) {
+    i <- match(as.character(out$system_id), .pa$system_id)
+    out$n_genes_polarity_signed <- .pa$n_polarity_signed[i]
+    out$n_genes_polarity_unresolved <- .pa$n_polarity_unresolved[i]
+    out$genes_polarity_unresolved <- .pa$genes_unresolved[i]
+  }
   for (at in c("qc_excluded_cpgs", "unmapped_cpgs", "cpgs_outside_reference",
                "n_cpgs_submitted", "n_cpgs_mapped", "tissue"))
     attr(out, at) <- attr(led, at)
@@ -123,6 +132,12 @@ print.dmsa_coverage <- function(x, ...) {
                 .ns, .nm %||% NA_integer_, .or, .un, .qc))
   cat(sprintf("  %d system(s); reference genes %d, testable here %d\n",
               nrow(x), sum(x$n_genes_reference), sum(x$n_genes_testable)))
+  if ("n_genes_polarity_unresolved" %in% names(x) &&
+      any(x$n_genes_polarity_unresolved > 0, na.rm = TRUE))
+    cat(sprintf(paste0("  polarity: %d testable gene(s) have NO resolved ",
+                       "activation sign and are weighted 0 in the system ",
+                       "score (see genes_polarity_unresolved)\n"),
+                sum(x$n_genes_polarity_unresolved, na.rm = TRUE)))
   cat("  family_size_gene is the size of the gene-level maxT/minP family:\n")
   cat("  it grows with coverage, so adjusted p-values are not comparable\n")
   cat("  across versions or datasets with different coverage.\n\n")

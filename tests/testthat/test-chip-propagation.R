@@ -53,7 +53,7 @@ test_that("a declared random chip is retained on the frame", {
   for (cl in cols) d[[cl]] <- stats::plogis(stats::rnorm(n))
   f <- dmsa_frame(d, methylation = cols, direction_source = "bundled",
                   outcome = "y", covariates = "cov1",
-                  random_effects = "cID", chip = "slide",
+                  blocks = "cID", chip = "slide",
                   chip_effect = "random", B = 19, plots = FALSE,
                   tables = FALSE, summary = FALSE, progress = FALSE,
                   beep = FALSE, outdir = tempfile("dmsa_chip"))

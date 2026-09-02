@@ -97,6 +97,11 @@
 #'   that defends against BOTH multiplicities - the cross-lens combination
 #'   is absorbed by ACAT (Liu & Xie 2020), the cross-unit search by the
 #'   calibration - and is most powerful when all three lenses agree.
+#'   \code{attr(., "probe_fits")} is the per-probe fit the lenses were built
+#'   from (\code{column}, \code{b}, \code{se} of each standardised,
+#'   covariate-adjusted, random-intercept-transformed probe on the tested
+#'   term; its own attributes carry the residual df and the RI gamma), so a
+#'   figure can draw exactly the numbers the test used.
 #' @examples
 #' set.seed(1)
 #' n <- 100
@@ -504,5 +509,15 @@ dmsa_triangulate <- function(M, data, rhs, term, units, alignment, block = NULL,
   attr(out, "weighting") <- weighting
   attr(out, "union_null_min") <- Mb
   attr(out, "omnibus_null_min") <- Mo_
+  ## spec 52: the per-probe fit the lenses were built from - b and se of
+  ## each (standardised, covariate-adjusted, random-intercept-transformed
+  ## when one was declared) probe on the tested term. The report's locus
+  ## panel draws THESE, so the figure and the test share one estimator.
+  ## Attached only; no statistic above depends on it.
+  attr(out, "probe_fits") <- structure(
+    data.frame(column = colnames(Y), b = as.numeric(L0$b),
+               se = as.numeric(L0$se), stringsAsFactors = FALSE,
+               row.names = NULL),
+    dfr = dfr, ri_gamma = ri_gamma, term = term)
   out
 }

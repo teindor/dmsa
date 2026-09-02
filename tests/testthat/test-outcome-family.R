@@ -16,7 +16,7 @@
 .otf_run <- function(fx, outcome, ...)
   dmsa_frame(fx$data, methylation = fx$cols, direction_source = "bundled",
              outcome = outcome,
-             covariates = "cov1", random_effects = "cID", chip = FALSE,
+             covariates = "cov1", blocks = "cID", chip = FALSE,
              B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
              progress = FALSE, beep = FALSE, outdir = tempfile("dmsa_otf"), ...)
 
@@ -170,7 +170,7 @@ test_that("outcome_levels as a list is validated against the outcomes", {
                     probe = "cg01", column = "cg01",
                     best_direction = -1, p_plus = .1)
   expect_error(dmsa_frame(d, map = map, outcomes = "y", covariates = "cov1",
-                          random_effects = "cID", B = 19, plots = FALSE,
+                          blocks = "cID", B = 19, plots = FALSE,
                           tables = FALSE, summary = FALSE, progress = FALSE,
                           beep = FALSE, outdir = tempfile(),
                           outcome_levels = list(WRONG = c("a", "b"))),
@@ -184,13 +184,13 @@ test_that("gene_models accepts auto/TRUE/FALSE/table and refuses the rest", {
                     probe = "cg01", column = "cg01",
                     best_direction = -1, p_plus = .1)
   expect_error(dmsa_frame(d, map = map, outcomes = "y", covariates = "cov1",
-                          random_effects = "cID", B = 19, plots = FALSE,
+                          blocks = "cID", B = 19, plots = FALSE,
                           tables = FALSE, summary = FALSE, progress = FALSE,
                           beep = FALSE, outdir = tempfile(),
                           gene_models = "bogus"),
                "auto")
   f <- dmsa_frame(d, map = map, outcomes = "y", covariates = "cov1",
-                  random_effects = "cID", B = 19, plots = FALSE,
+                  blocks = "cID", B = 19, plots = FALSE,
                   tables = FALSE, summary = FALSE, progress = FALSE,
                   beep = FALSE, outdir = tempfile())   # default = "auto"
   expect_identical(f$gene_models, "auto")
@@ -206,14 +206,14 @@ test_that("predictor_levels mirrors outcome_levels in the user's vocabulary", {
                   cg01 = stats::plogis(rnorm(40)))
   ## declared with predictors= -> predictor_levels works and lands on the frame
   f <- dmsa_frame(d, map = map, predictors = "pills", covariates = "cov1",
-                  random_effects = "cID", B = 19, plots = FALSE,
+                  blocks = "cID", B = 19, plots = FALSE,
                   tables = FALSE, summary = FALSE, progress = FALSE,
                   beep = FALSE, outdir = tempfile(),
                   predictor_levels = list(pills = c("no pills", "pills")))
   expect_identical(f$outcome_levels$pills, c("no pills", "pills"))
   ## both spellings at once -> refused in plain words
   expect_error(dmsa_frame(d, map = map, predictors = "pills",
-                          covariates = "cov1", random_effects = "cID",
+                          covariates = "cov1", blocks = "cID",
                           B = 19, plots = FALSE, tables = FALSE,
                           summary = FALSE, progress = FALSE, beep = FALSE,
                           outdir = tempfile(),
@@ -222,7 +222,7 @@ test_that("predictor_levels mirrors outcome_levels in the user's vocabulary", {
                "ONCE")
   ## predictor_levels with outcomes= -> pointed to outcome_levels
   expect_error(dmsa_frame(d, map = map, outcomes = "pills",
-                          covariates = "cov1", random_effects = "cID",
+                          covariates = "cov1", blocks = "cID",
                           B = 19, plots = FALSE, tables = FALSE,
                           summary = FALSE, progress = FALSE, beep = FALSE,
                           outdir = tempfile(),
@@ -249,7 +249,7 @@ test_that("predictor_levels mirrors outcome_levels in the user's vocabulary", {
 test_that("predictor_labels names the predictors= column, one label suffices", {
   set.seed(8); fx <- .lab_fix()
   f <- dmsa_frame(fx$d, map = fx$map, predictors = "pills",
-                  covariates = "cov1", random_effects = "cID", B = 19,
+                  covariates = "cov1", blocks = "cID", B = 19,
                   plots = FALSE, tables = FALSE, summary = FALSE,
                   progress = FALSE, beep = FALSE, outdir = tempfile(),
                   predictor_labels = "Used birth-control pills when met")
@@ -257,7 +257,7 @@ test_that("predictor_labels names the predictors= column, one label suffices", {
                    "Used birth-control pills when met")
   ## with outcomes= the same argument errors, pointing to the right ones
   expect_error(dmsa_frame(fx$d, map = fx$map, outcomes = "pills",
-                          covariates = "cov1", random_effects = "cID",
+                          covariates = "cov1", blocks = "cID",
                           B = 19, plots = FALSE, tables = FALSE,
                           summary = FALSE, progress = FALSE, beep = FALSE,
                           outdir = tempfile(),
@@ -268,7 +268,7 @@ test_that("predictor_labels names the predictors= column, one label suffices", {
 test_that("covariate_labels names the covariates", {
   set.seed(8); fx <- .lab_fix()
   f <- dmsa_frame(fx$d, map = fx$map, predictors = "pills",
-                  covariates = "cov1", random_effects = "cID", B = 19,
+                  covariates = "cov1", blocks = "cID", B = 19,
                   plots = FALSE, tables = FALSE, summary = FALSE,
                   progress = FALSE, beep = FALSE, outdir = tempfile(),
                   covariate_labels = c(cov1 = "Control 1"))
@@ -278,7 +278,7 @@ test_that("covariate_labels names the covariates", {
 test_that("a length-2 mod_label is refused and pointed at mod_levels", {
   set.seed(8); fx <- .lab_fix()
   expect_error(dmsa_frame(fx$d, map = fx$map, predictors = "pills",
-                          covariates = "cov1", random_effects = "cID",
+                          covariates = "cov1", blocks = "cID",
                           moderation = TRUE, mod = "sex",
                           B = 19, plots = FALSE, tables = FALSE,
                           summary = FALSE, progress = FALSE, beep = FALSE,
@@ -291,7 +291,7 @@ test_that("named level labels are matched by VALUE and cannot flip", {
   set.seed(8); fx <- .lab_fix()
   ## deliberately out of order: "2" first - resolution is by value
   f <- dmsa_frame(fx$d, map = fx$map, predictors = "pills",
-                  covariates = "cov1", random_effects = "cID",
+                  covariates = "cov1", blocks = "cID",
                   moderation = TRUE, mod = "sex",
                   B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
                   progress = FALSE, beep = FALSE, outdir = tempfile(),
@@ -303,7 +303,7 @@ test_that("named level labels are matched by VALUE and cannot flip", {
                    c("not taking pills", "taking pills"))
   ## a name that is not one of the variable's levels errors, naming them
   expect_error(dmsa_frame(fx$d, map = fx$map, predictors = "pills",
-                          covariates = "cov1", random_effects = "cID",
+                          covariates = "cov1", blocks = "cID",
                           moderation = TRUE, mod = "sex",
                           B = 19, plots = FALSE, tables = FALSE,
                           summary = FALSE, progress = FALSE, beep = FALSE,
@@ -317,7 +317,7 @@ test_that("a column given as covariate AND moderator is flagged and deduped", {
   ## moderation = TRUE: dropped from covariates, said out loud
   expect_message(
     f <- dmsa_frame(fx$d, map = fx$map, predictors = "pills",
-                    covariates = c("sex", "cov1"), random_effects = "cID",
+                    covariates = c("sex", "cov1"), blocks = "cID",
                     moderation = TRUE, mod = "sex",
                     B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
                     progress = FALSE, beep = FALSE, outdir = tempfile()),
@@ -328,7 +328,7 @@ test_that("a column given as covariate AND moderator is flagged and deduped", {
   ## moderation runs and sex stays a plain covariate
   expect_message(
     f2 <- dmsa_frame(fx$d, map = fx$map, predictors = "pills",
-                     covariates = c("sex", "cov1"), random_effects = "cID",
+                     covariates = c("sex", "cov1"), blocks = "cID",
                      mod = "sex",
                      B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
                      progress = FALSE, beep = FALSE, outdir = tempfile()),

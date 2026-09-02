@@ -15,7 +15,7 @@
 .mor_run <- function(fx, ...)
   dmsa_frame(fx$data, methylation = fx$cols, direction_source = "bundled",
              outcome = "score",
-             covariates = "cov1", random_effects = "cID", chip = FALSE,
+             covariates = "cov1", blocks = "cID", chip = FALSE,
              B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
              progress = FALSE, beep = FALSE, outdir = tempfile("dmsa_mor"), ...)
 
@@ -100,7 +100,7 @@ test_that("predictors= names the columns AND sets the orientation", {
   f <- dmsa_frame(fx$data, methylation = fx$cols,
                   direction_source = "bundled",
                   predictors = "score",
-                  covariates = "cov1", random_effects = "cID", chip = FALSE,
+                  covariates = "cov1", blocks = "cID", chip = FALSE,
                   B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
                   progress = FALSE, beep = FALSE, outdir = tempfile("mor_p"))
   expect_identical(f$frame_role, "outcome")
@@ -117,7 +117,7 @@ test_that("outcomes= is the interface; legacy outcome= still works", {
   f <- dmsa_frame(fx$data, methylation = fx$cols,
                   direction_source = "bundled",
                   outcomes = "score",
-                  covariates = "cov1", random_effects = "cID", chip = FALSE,
+                  covariates = "cov1", blocks = "cID", chip = FALSE,
                   B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
                   progress = FALSE, beep = FALSE, outdir = tempfile("mor_o"))
   expect_identical(f$outcome, "score")
@@ -139,7 +139,7 @@ test_that("contradictions and duplicates are refused with plain words", {
   set.seed(1); fx <- .mor_fixture()
   base <- function(...) dmsa_frame(fx$data, methylation = fx$cols,
     direction_source = "bundled", covariates = "cov1",
-    random_effects = "cID", chip = FALSE, B = 19, plots = FALSE,
+    blocks = "cID", chip = FALSE, B = 19, plots = FALSE,
     tables = FALSE, summary = FALSE, progress = FALSE, beep = FALSE,
     outdir = tempfile("mor_x"), ...)
   expect_error(base(predictors = "score", frame_role = "predictor"),

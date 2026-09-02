@@ -33,7 +33,7 @@
 .pp_run <- function(d, cols = NULL, ...) {
   old <- options(dmsa.pair_table = .pp_pairs()); on.exit(options(old))
   dmsa_frame(d, methylation = cols, direction_source = "cpgdirection",
-             outcome = "y", covariates = "cov1", random_effects = "cID",
+             outcome = "y", covariates = "cov1", blocks = "cID",
              chip = FALSE, B = 19, plots = FALSE, tables = FALSE,
              summary = FALSE, progress = FALSE, beep = FALSE,
              outdir = tempfile("dmsa_pp"), ...)
@@ -135,7 +135,7 @@ test_that("dmsa_coverage reports reference vs testable, and errors on bundled", 
   bcols <- utils::head(mp0$column[mp0$gene == "FKBP5"], 3)
   db <- .pp_data(cols = bcols)
   fb <- dmsa_frame(db, methylation = bcols, direction_source = "bundled",
-                   outcome = "y", covariates = "cov1", random_effects = "cID",
+                   outcome = "y", covariates = "cov1", blocks = "cID",
                    chip = FALSE, B = 19, plots = FALSE, tables = FALSE,
                    summary = FALSE, progress = FALSE, beep = FALSE,
                    outdir = tempfile("dmsa_ppb"))
@@ -149,7 +149,7 @@ test_that("the report writes the pair ledger CSV (spec 17)", {
   old <- options(dmsa.pair_table = .pp_pairs()); on.exit(options(old))
   f <- dmsa_frame(.pp_data(cols = cols), methylation = cols,
                   direction_source = "cpgdirection", outcome = "y",
-                  covariates = "cov1", random_effects = "cID", chip = FALSE,
+                  covariates = "cov1", blocks = "cID", chip = FALSE,
                   B = 19, plots = FALSE, tables = TRUE, summary = FALSE,
                   table_type = "html", progress = FALSE, beep = FALSE,
                   outdir = od)
@@ -169,7 +169,7 @@ test_that("a user map table forces the bundled source", {
   sm <- mp0[mp0$gene == "FKBP5", ][1:3, ]
   d <- .pp_data(cols = sm$column)
   f <- dmsa_frame(d, methylation = sm$column, map = sm, outcome = "y",
-                  covariates = "cov1", random_effects = "cID", chip = FALSE,
+                  covariates = "cov1", blocks = "cID", chip = FALSE,
                   B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
                   progress = FALSE, beep = FALSE, outdir = tempfile("dmsa_ppu"))
   expect_identical(f$direction_source, "bundled")
@@ -178,7 +178,7 @@ test_that("a user map table forces the bundled source", {
   expect_error(
     dmsa_frame(d, methylation = sm$column, map = sm,
                direction_source = "cpgdirection", outcome = "y",
-               covariates = "cov1", random_effects = "cID", chip = FALSE,
+               covariates = "cov1", blocks = "cID", chip = FALSE,
                B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
                progress = FALSE, beep = FALSE, outdir = tempfile("x")),
     "pick one source")
@@ -191,7 +191,7 @@ test_that("non-site columns are never measurements on the pair path", {
   d$rs1234 <- stats::plogis(stats::rnorm(nrow(d)))   # a variant probe
   old <- options(dmsa.pair_table = .pp_pairs()); on.exit(options(old))
   f <- dmsa_frame(d, direction_source = "cpgdirection", outcome = "y",
-                  covariates = "cov1", random_effects = "cID", chip = FALSE,
+                  covariates = "cov1", blocks = "cID", chip = FALSE,
                   B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
                   progress = FALSE, beep = FALSE, outdir = tempfile("dmsa_pps"))
   expect_false("rs1234" %in% f$measurements$measurement_id)
@@ -212,7 +212,7 @@ test_that("every submitted CpG has a stated fate (integration-brief rule 4)", {
   d <- .pp_data(cols = cols)
   old <- options(dmsa.pair_table = pr); on.exit(options(old))
   f <- dmsa_frame(d, methylation = cols, direction_source = "cpgdirection",
-                  outcome = "y", covariates = "cov1", random_effects = "cID",
+                  outcome = "y", covariates = "cov1", blocks = "cID",
                   chip = FALSE, B = 19, plots = FALSE, tables = FALSE,
                   summary = FALSE, progress = FALSE, beep = FALSE,
                   outdir = tempfile("dmsa_ppf"))
@@ -266,7 +266,7 @@ test_that("the QC note is scoped to the analysed systems when mapping is known",
   old <- options(dmsa.pair_table = pt); on.exit(options(old))
   f <- suppressMessages(dmsa_frame(
     d, methylation = cols, direction_source = "cpgdirection",
-    outcome = "y", covariates = "cov1", random_effects = "cID",
+    outcome = "y", covariates = "cov1", blocks = "cID",
     chip = FALSE, B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
     progress = FALSE, beep = FALSE, outdir = tempfile("dmsa_qcs")))
   qn <- f$corrections[f$corrections$field == "probe QC", ]
@@ -285,7 +285,7 @@ test_that("without pair mapping the QC note states the file-wide scope", {
   old <- options(dmsa.pair_table = pt); on.exit(options(old))
   f <- suppressMessages(dmsa_frame(
     d, methylation = cols, direction_source = "cpgdirection",
-    outcome = "y", covariates = "cov1", random_effects = "cID",
+    outcome = "y", covariates = "cov1", blocks = "cID",
     chip = FALSE, B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
     progress = FALSE, beep = FALSE, outdir = tempfile("dmsa_qcf")))
   qn <- f$corrections[f$corrections$field == "probe QC", ]
@@ -307,7 +307,7 @@ test_that("LIVE: a masked in-reference probe is counted in scope only when its s
   fB <- suppressMessages(dmsa_frame(
     d, methylation = c("cg26261055", "cg25140571", "cg00143991"),
     direction_source = "cpgdirection", outcome = "y", covariates = "cov1",
-    random_effects = "cID", chip = FALSE, B = 19, plots = FALSE,
+    blocks = "cID", chip = FALSE, B = 19, plots = FALSE,
     tables = FALSE, summary = FALSE, progress = FALSE, beep = FALSE,
     systems = "HPA axis & glucocorticoid signalling", outdir = tempfile()))
   qB <- fB$corrections[fB$corrections$field == "probe QC", ]

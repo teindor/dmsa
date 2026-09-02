@@ -28,7 +28,8 @@ dmsa_frame(
   outcomes = NULL,
   predictors = NULL,
   covariates = "contract",
-  random_effects = "cID",
+  blocks = NULL,
+  random_effects = NULL,
   chip = TRUE,
   chip_effect = c("random", "fixed", "none"),
   outcome_levels = NULL,
@@ -187,20 +188,29 @@ reading; give exactly ONE of outcome / outcomes / predictors.}
 \item{covariates}{"contract" for the Alpha student contract, or a character
 vector. chip is added as a fixed factor automatically when present.}
 
-\item{random_effects}{Your random-effect grouping factor(s), stated the
-way you think about them (lme4-style). ONE factor - \code{"cID"} for
-couples - defines the exchangeability blocks: rows of one group travel
-together under permutation. TWO factors and \code{dmsa_frame()} works
-out the structure itself and says so in lme4 notation: NESTED (e.g.
-couples on the same chip, \code{(1 | chip/cID)}) blocks on the nested
-pair exactly as before, with the coarse factor's variance component
-left to \code{chip =}; CROSSED (e.g. partners of one couple on
-DIFFERENT chips, \code{(1 | cID) + (1 | chip)}) routes the finest
-dependence factor to the blocks and the other into the \code{(1 | .)}
-random intercept - crossing them into one block would make every group
-a singleton, which is the error this replaces. Aliased factors are
-detected; three or more are refused (the engine fits one block
-structure and one intercept).}
+\item{blocks}{The exchangeability blocks: the column(s) of \code{data}
+whose rows must travel TOGETHER under permutation because they are not
+independent - the participant id when a person contributes more than one
+row, the couple id for partners, the family id for relatives. There is
+NO default (PI ruling, 2026-09-02): if you declare none, every row is
+permuted independently and \code{dmsa_frame()} says so and asks you to
+confirm that is intended; a block column you DID name but that is absent
+from \code{data} is a hard error (spec 43), because dropping it would
+silently change the null model. \code{covariates = "contract"} carries
+the Alpha build's block structure and is adopted when you give none.
+TWO factors and \code{dmsa_frame()} works out the structure itself and
+says so in lme4 notation: NESTED (e.g. couples on the same chip,
+\code{(1 | chip/cID)}) blocks on the nested pair, with the coarse
+factor's variance component left to \code{chip =}; CROSSED (partners of
+one couple on DIFFERENT chips, \code{(1 | cID) + (1 | chip)}) routes the
+finest dependence factor to the blocks and the other into the
+\code{(1 | .)} random intercept. Aliased factors are detected; three or
+more are refused (the engine fits one block structure and one
+intercept).}
+
+\item{random_effects}{Deprecated spelling of \code{blocks} (it always named
+the exchangeability blocks, not lme4 random effects). Still accepted,
+with a message; giving both is an error.}
 
 \item{chip}{how to handle the array/chip batch factor. \code{TRUE} (default)
 enters it as a fixed effect, using \code{chip_f} if present and otherwise
@@ -375,5 +385,5 @@ d <- data.frame(out1 = rnorm(60), cov1 = rnorm(60),
 sig <- 0.5 * outer(d$out1, map$best_direction * (map$gene == "G1"))
 d[map$column] <- plogis(matrix(rnorm(60 * nrow(map)), 60) + sig)
 dmsa_frame(d, map = map, outcomes = "out1", covariates = "cov1",
-           random_effects = "cID", B = 99, outdir = tempfile("dmsa_ex"))
+           blocks = "cID", B = 99, outdir = tempfile("dmsa_ex"))
 }

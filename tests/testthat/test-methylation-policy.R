@@ -15,7 +15,7 @@
 .mth_run <- function(fx, data = fx$data, ...)
   dmsa_frame(data, methylation = fx$cols, direction_source = "bundled",
              outcome = "y", covariates = "cov1",
-             random_effects = "cID", chip = FALSE, B = 19, plots = FALSE,
+             blocks = "cID", chip = FALSE, B = 19, plots = FALSE,
              tables = FALSE, summary = FALSE, progress = FALSE, beep = FALSE,
              outdir = tempfile("dmsa_mth"), ...)
 

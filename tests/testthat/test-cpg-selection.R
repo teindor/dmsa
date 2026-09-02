@@ -51,7 +51,7 @@ test_that("dmsa_frame(cpgs_exclude=) analyses only the child's probes", {
   old <- options(dmsa.pair_table = .grp_pairs()); on.exit(options(old))
   f <- dmsa_frame(d, direction_source = "cpgdirection",
                   cpgs_exclude = c("_maternal", "_paternal"),
-                  outcome = "y", covariates = "cov1", random_effects = "cID",
+                  outcome = "y", covariates = "cov1", blocks = "cID",
                   chip = FALSE, B = 19, plots = FALSE, tables = FALSE,
                   summary = FALSE, progress = FALSE, beep = FALSE,
                   outdir = tempfile("dmsa_grp"))
@@ -70,7 +70,7 @@ test_that("dmsa_frame(cpgs_include=) selects one parent's probes", {
   old <- options(dmsa.pair_table = .grp_pairs()); on.exit(options(old))
   f <- dmsa_frame(d, direction_source = "cpgdirection",
                   cpgs_include = "_maternal",
-                  outcome = "y", covariates = "cov1", random_effects = "cID",
+                  outcome = "y", covariates = "cov1", blocks = "cID",
                   chip = FALSE, B = 19, plots = FALSE, tables = FALSE,
                   summary = FALSE, progress = FALSE, beep = FALSE,
                   outdir = tempfile("dmsa_grpM"))
@@ -88,7 +88,7 @@ test_that("patterns that remove everything are a hard error", {
   expect_error(
     dmsa_frame(d, direction_source = "cpgdirection",
                cpgs_include = "_grandparental",
-               outcome = "y", covariates = "cov1", random_effects = "cID",
+               outcome = "y", covariates = "cov1", blocks = "cID",
                chip = FALSE, B = 19, plots = FALSE, tables = FALSE,
                summary = FALSE, progress = FALSE, beep = FALSE,
                outdir = tempfile("dmsa_grpE")),
@@ -108,7 +108,7 @@ test_that("the bundled path honours the same filter", {
   for (cl in cols) d[[cl]] <- stats::plogis(stats::rnorm(n))
   f <- dmsa_frame(d, methylation = cols, direction_source = "bundled",
                   cpgs_include = gene_tag,
-                  outcome = "y", covariates = "cov1", random_effects = "cID",
+                  outcome = "y", covariates = "cov1", blocks = "cID",
                   chip = FALSE, B = 19, plots = FALSE, tables = FALSE,
                   summary = FALSE, progress = FALSE, beep = FALSE,
                   outdir = tempfile("dmsa_grpB"))
@@ -116,7 +116,7 @@ test_that("the bundled path honours the same filter", {
   expect_error(
     dmsa_frame(d, methylation = cols, direction_source = "bundled",
                cpgs_exclude = gene_tag,
-               outcome = "y", covariates = "cov1", random_effects = "cID",
+               outcome = "y", covariates = "cov1", blocks = "cID",
                chip = FALSE, B = 19, plots = FALSE, tables = FALSE,
                summary = FALSE, progress = FALSE, beep = FALSE,
                outdir = tempfile("dmsa_grpB2")),

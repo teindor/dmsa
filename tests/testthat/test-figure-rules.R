@@ -136,8 +136,12 @@ test_that("the report's locus panel is drawn even when every probe is grey", {
   fp <- file.path(tempfile("locusgrey"), "locus_FAKE1_y")
   dir.create(dirname(fp), recursive = TRUE)
   r <- suppressMessages(.rp_fig_locus(fr, "y", "s1", "FAKE1", TRUE, fp))
-  expect_identical(r, fp)
+  expect_identical(as.character(r), fp)
   expect_true(file.exists(paste0(fp, ".png")))
+  ## spec 52: with no engine fit handed over, the panel says it fell back
+  rows <- attr(r, "probe_rows")
+  expect_equal(nrow(rows), 3L)
+  expect_true(all(rows$estimator == "ols_fallback"))
 })
 
 ## ---- a NAMED gene always gets its locus panel (PI, 2026-08-29) -------------
@@ -164,7 +168,7 @@ test_that("every named gene's locus panel is written and named in summary.md", {
   old <- options(dmsa.pair_table = pairs); on.exit(options(old))
   f <- suppressMessages(dmsa_frame(
     d, methylation = pairs$cpg_id, direction_source = "cpgdirection",
-    outcome = "y", covariates = "cov1", random_effects = "cID",
+    outcome = "y", covariates = "cov1", blocks = "cID",
     chip = FALSE, B = 99, progress = FALSE, beep = FALSE, outdir = od))
   r <- suppressMessages(dmsa_report(f))
   hits <- r$results[r$results$selected & r$results$level == "gene", ]
@@ -214,7 +218,7 @@ test_that("moderation = TRUE no longer replaces the main analysis", {
   old <- options(dmsa.pair_table = pairs); on.exit(options(old))
   f <- suppressMessages(dmsa_frame(d, methylation = pairs$cpg_id,
     direction_source = "cpgdirection", predictors = "pills",
-    covariates = "cov1", random_effects = "cID", chip = FALSE,
+    covariates = "cov1", blocks = "cID", chip = FALSE,
     moderation = TRUE, mod = "sex",
     mod_levels = c("1" = "Husband", "2" = "Wife"),
     B = 49, progress = FALSE, beep = FALSE, outdir = od))
@@ -238,7 +242,7 @@ test_that("a binary outcome under frame_role='outcome' is not refused", {
                   cov1 = rnorm(60), cID = rep(1:30, each = 2),
                   cg01 = stats::plogis(rnorm(60)))
   f <- suppressMessages(dmsa_frame(d, map = map, predictors = "pills",
-    covariates = "cov1", random_effects = "cID", moderation = TRUE,
+    covariates = "cov1", blocks = "cID", moderation = TRUE,
     mod = "sex", B = 19, plots = FALSE, tables = FALSE, summary = FALSE,
     progress = FALSE, beep = FALSE, outdir = tempfile()))
   expect_s3_class(suppressWarnings(dmsa_report(f)), "dmsa_report")

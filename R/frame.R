@@ -531,20 +531,28 @@
 #'   reading; give exactly ONE of outcome / outcomes / predictors.
 #' @param covariates "contract" for the Alpha student contract, or a character
 #'   vector. chip is added as a fixed factor automatically when present.
-#' @param random_effects Your random-effect grouping factor(s), stated the
-#'   way you think about them (lme4-style). ONE factor - \code{"cID"} for
-#'   couples - defines the exchangeability blocks: rows of one group travel
-#'   together under permutation. TWO factors and \code{dmsa_frame()} works
-#'   out the structure itself and says so in lme4 notation: NESTED (e.g.
-#'   couples on the same chip, \code{(1 | chip/cID)}) blocks on the nested
-#'   pair exactly as before, with the coarse factor's variance component
-#'   left to \code{chip =}; CROSSED (e.g. partners of one couple on
-#'   DIFFERENT chips, \code{(1 | cID) + (1 | chip)}) routes the finest
-#'   dependence factor to the blocks and the other into the \code{(1 | .)}
-#'   random intercept - crossing them into one block would make every group
-#'   a singleton, which is the error this replaces. Aliased factors are
-#'   detected; three or more are refused (the engine fits one block
-#'   structure and one intercept).
+#' @param blocks The exchangeability blocks: the column(s) of \code{data}
+#'   whose rows must travel TOGETHER under permutation because they are not
+#'   independent - the participant id when a person contributes more than one
+#'   row, the couple id for partners, the family id for relatives. There is
+#'   NO default (PI ruling, 2026-09-02): if you declare none, every row is
+#'   permuted independently and \code{dmsa_frame()} says so and asks you to
+#'   confirm that is intended; a block column you DID name but that is absent
+#'   from \code{data} is a hard error (spec 43), because dropping it would
+#'   silently change the null model. \code{covariates = "contract"} carries
+#'   the Alpha build's block structure and is adopted when you give none.
+#'   TWO factors and \code{dmsa_frame()} works out the structure itself and
+#'   says so in lme4 notation: NESTED (e.g. couples on the same chip,
+#'   \code{(1 | chip/cID)}) blocks on the nested pair, with the coarse
+#'   factor's variance component left to \code{chip =}; CROSSED (partners of
+#'   one couple on DIFFERENT chips, \code{(1 | cID) + (1 | chip)}) routes the
+#'   finest dependence factor to the blocks and the other into the
+#'   \code{(1 | .)} random intercept. Aliased factors are detected; three or
+#'   more are refused (the engine fits one block structure and one
+#'   intercept).
+#' @param random_effects Deprecated spelling of \code{blocks} (it always named
+#'   the exchangeability blocks, not lme4 random effects). Still accepted,
+#'   with a message; giving both is an error.
 #' @param chip how to handle the array/chip batch factor. \code{TRUE} (default)
 #'   enters it as a fixed effect, using \code{chip_f} if present and otherwise
 #'   building it from a \code{chip}/\code{chip_T*} column. \code{FALSE} leaves
@@ -689,7 +697,7 @@
 #' sig <- 0.5 * outer(d$out1, map$best_direction * (map$gene == "G1"))
 #' d[map$column] <- plogis(matrix(rnorm(60 * nrow(map)), 60) + sig)
 #' dmsa_frame(d, map = map, outcomes = "out1", covariates = "cov1",
-#'            random_effects = "cID", B = 99, outdir = tempfile("dmsa_ex"))
+#'            blocks = "cID", B = 99, outdir = tempfile("dmsa_ex"))
 #' @export
 dmsa_frame <- function(data, methylation = NULL, map = "alpha",
                        reference = "alpha",
@@ -706,7 +714,8 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
                        probe = TRUE, systems = NULL, sets = "alpha",
                        ...,
                        outcomes = NULL, predictors = NULL,
-                       covariates = "contract", random_effects = "cID",
+                       covariates = "contract", blocks = NULL,
+                       random_effects = NULL,
                        chip = TRUE,
                        chip_effect = c("random", "fixed", "none"),
                        outcome_levels = NULL, predictor_levels = NULL,
@@ -813,6 +822,23 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
          "frame - `predictors =`.", call. = FALSE)
   correction <- match.arg(correction); plot_type <- match.arg(plot_type)
   weighting <- match.arg(weighting)
+  ## spec 42 (PI ruling 2026-09-02): NO default exchangeability blocks. The
+  ## user declares them with `blocks = ` when participants contribute more
+  ## than one row; `random_effects = ` is kept as a deprecated alias of the
+  ## same argument (it always named the blocks, not lme4 random effects).
+  if (!is.null(random_effects)) {
+    if (!is.null(blocks))
+      stop("give the exchangeability blocks ONCE: `blocks = ` ",
+           "(`random_effects = ` is the deprecated spelling of the same ",
+           "argument)", call. = FALSE)
+    message("dmsa_frame(): `random_effects = ` is deprecated - it names the ",
+            "exchangeability BLOCKS (rows that travel together under ",
+            "permutation); use `blocks = `. Treated as blocks = ",
+            paste0("c(", paste0('"', random_effects, '"', collapse = ", "), ")"))
+    blocks <- random_effects
+  }
+  random_effects <- blocks        # internal name below, unchanged
+  .blocks_declared <- !is.null(blocks)
   table_type <- match.arg(table_type)
   sample_align <- match.arg(sample_align)
   missing_methylation <- match.arg(missing_methylation)
@@ -1415,14 +1441,17 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
                                 " | blocks: ", paste(ct$block, collapse = ", "),
                                 if (is.null(ct$chip)) " | chip: NEVER included"
                                 else paste0(" | chip: ", ct$chip)))
-      ## adopt the build's blocks when the caller left the default
-      if (identical(random_effects, "cID") &&
-          !identical(ct$block, "cID") && all(ct$block %in% names(data))) {
+      ## the contract the user asked for DECLARES the blocks; adopt them when
+      ## the user gave none (an explicit `blocks = ` always wins)
+      if (is.null(random_effects) && all(ct$block %in% names(data))) {
         random_effects <- ct$block
-        cor <- .frame_note(cor, "random_effects",
-                           "repeated-measures build detected",
-                           paste0("blocks set to ", paste(ct$block, collapse = ", "),
-                                  " - permuting within cID alone would break the within-person pairing"))
+        .blocks_declared <- TRUE
+        cor <- .frame_note(cor, "blocks",
+                           paste0("set by the ", ct$label, " contract"),
+                           paste0("blocks = ", paste(ct$block, collapse = ", "),
+                                  " (covariates = \"contract\" carries the block structure)"))
+        message("dmsa_frame(): blocks = ", paste(ct$block, collapse = ", "),
+                " taken from the ", ct$label, " contract")
       }
       ## the before/after builds forbid chip; honour that
       if (is.null(ct$chip)) attr(covariates, "no_chip") <- TRUE
@@ -1459,7 +1488,7 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   random_effects <- unique(as.character(
     random_effects[!is.na(random_effects) & nzchar(random_effects)]))
   if (length(random_effects) > 2L)
-    stop("random_effects lists ", length(random_effects), " grouping ",
+    stop("blocks lists ", length(random_effects), " grouping ",
          "factors. dmsa supports two: one exchangeability block (the rows ",
          "that stay together under permutation) and one (1 | .) random ",
          "intercept. Fold or drop the rest.", call. = FALSE)
@@ -1471,7 +1500,7 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
     if (.n12 && .n21) {
       ## the two columns induce the SAME grouping: keeping both is harmless
       ## (their interaction IS that grouping), so only say so
-      cor <- .frame_note(cor, "random_effects",
+      cor <- .frame_note(cor, "blocks",
                          sprintf("`%s` and `%s` are aliased (identical grouping)",
                                  .f1n, .f2n),
                          "one grouping, stated twice - treated as one block")
@@ -1484,7 +1513,7 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
       ## through `chip =` (whose default auto-detects chip columns).
       .fine <- if (.n12) .f1n else .f2n
       .coarse <- setdiff(c(.f1n, .f2n), .fine)
-      cor <- .frame_note(cor, "random_effects",
+      cor <- .frame_note(cor, "blocks",
                          sprintf("(1 | %s/%s): %s nested in %s",
                                  .coarse, .fine, .fine, .coarse),
                          sprintf(paste0("blocks on the nested pair equal ",
@@ -1501,22 +1530,22 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
       .fine <- if (nlevels(.f1) >= nlevels(.f2)) .f1n else .f2n
       .coarse <- setdiff(c(.f1n, .f2n), .fine)
       if (isTRUE(attr(covariates, "no_chip")))
-        stop("random_effects = c(\"", .f1n, "\", \"", .f2n, "\") are ",
+        stop("blocks = c(\"", .f1n, "\", \"", .f2n, "\") are ",
              "CROSSED, which needs `", .coarse, "` as a (1 | .) random ",
              "intercept - but this build's contract forbids a chip/batch ",
              "term. Use one exchangeability factor, or drop the contract.",
              call. = FALSE)
       if (is.character(chip) && length(chip) == 1L && nzchar(chip) &&
           !identical(chip, .coarse) && !identical(chip, "pool"))
-        stop("random_effects = c(\"", .f1n, "\", \"", .f2n, "\") routes `",
+        stop("blocks = c(\"", .f1n, "\", \"", .f2n, "\") routes `",
              .coarse, "` to the (1 | .) random intercept, but chip = \"",
              chip, "\" already claims that slot. The engine fits ONE random ",
              "intercept: drop one of the two.", call. = FALSE)
       if (identical(chip_effect, "none"))
-        stop("random_effects lists `", .coarse, "` as a random effect, but ",
+        stop("blocks lists `", .coarse, "` as a random effect, but ",
              "chip_effect = \"none\" says to drop it. Pick one.",
              call. = FALSE)
-      cor <- .frame_note(cor, "random_effects",
+      cor <- .frame_note(cor, "blocks",
                          sprintf("(1 | %s) + (1 | %s): crossed/independent",
                                  .f1n, .f2n),
                          sprintf(paste0("`%s` (finest dependence) is the ",
@@ -1742,6 +1771,17 @@ dmsa_frame <- function(data, methylation = NULL, map = "alpha",
   ## answers a question the user did not ask. This is a hard error even under
   ## autofix, which is allowed to repair nuisances, never the null.
   blockv <- intersect(random_effects, names(data))
+  if (!length(random_effects)) {
+    ## spec 42: say it, live, and ask whether it is intended
+    message("dmsa_frame(): no exchangeability blocks declared (blocks = NULL) - ",
+            "the permutation null treats every row as independent. Make sure ",
+            "this is intended: if any participant contributes more than one ",
+            "row (couples, family members, repeated measures), pass ",
+            "blocks = \"<id column>\"; if every row is a different person, ",
+            "nothing to do.")
+    cor <- .frame_note(cor, "blocks", "none declared",
+                       "rows permuted independently - intended? pass blocks = <id column> if participants repeat")
+  }
   if (length(blockv) < length(random_effects)) {
     gone <- setdiff(random_effects, blockv)
     stop("requested exchangeability block column(s) not found in `data`: ",
@@ -2362,6 +2402,18 @@ print.dmsa_frame <- function(x, ...) {
     cat("  sets:     ", x$selection$name, "\n", sep = "")
     .cas_evidence_banner(x$module_evidence, indent = "  ")
     .cas_polarity_banner(list(polarity = x$polarity_table), indent = "  ")
+    ## spec 40: unresolved polarity is said at the frame, per system
+    .pa <- tryCatch(.rp_polarity_audit(x), error = function(e) NULL)
+    if (!is.null(.pa) && any(.pa$n_polarity_unresolved > 0)) {
+      .u <- .pa[.pa$n_polarity_unresolved > 0, , drop = FALSE]
+      cat(sprintf(paste0("  polarity unresolved: %s - these genes are weighted 0 ",
+                         "in the system score (never assumed +1); the gene ",
+                         "level is unaffected\n"),
+                  paste(sprintf("%s %d of %d testable gene(s) (%s)", .u$system,
+                                .u$n_polarity_unresolved, .u$n_genes_testable,
+                                gsub(";", ", ", .u$genes_unresolved)),
+                        collapse = "; ")))
+    }
   }
   if (!is.null(x$direction_source) && x$direction_source == "cpgdirection")
     cat("  direction: cpgdirection pairs (", x$tissue, "), reference: ",

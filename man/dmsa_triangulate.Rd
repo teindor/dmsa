@@ -91,6 +91,11 @@ data.frame, one row per unit: the raw and family-adjusted p under
   that defends against BOTH multiplicities - the cross-lens combination
   is absorbed by ACAT (Liu & Xie 2020), the cross-unit search by the
   calibration - and is most powerful when all three lenses agree.
+  \code{attr(., "probe_fits")} is the per-probe fit the lenses were built
+  from (\code{column}, \code{b}, \code{se} of each standardised,
+  covariate-adjusted, random-intercept-transformed probe on the tested
+  term; its own attributes carry the residual df and the RI gamma), so a
+  figure can draw exactly the numbers the test used.
 }
 \description{
 Three complementary lenses on the same family

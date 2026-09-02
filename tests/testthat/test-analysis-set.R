@@ -20,7 +20,7 @@
   for (cl in cols) d[[cl]] <- stats::plogis(rnorm(60))
   old <- options(dmsa.pair_table = .as_pairs()); on.exit(options(old))
   dmsa_frame(d, methylation = cols, direction_source = "cpgdirection",
-             outcomes = "y", covariates = "cov1", random_effects = "cID",
+             outcomes = "y", covariates = "cov1", blocks = "cID",
              chip = FALSE, B = 19, plots = FALSE, tables = FALSE,
              summary = FALSE, progress = FALSE, beep = FALSE,
              outdir = tempfile("dmsa_as"))

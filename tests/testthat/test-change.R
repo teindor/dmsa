@@ -72,7 +72,7 @@ test_that("the frame's mod2 three-way detects a planted interaction", {
     d[[map$column[i]]] <- stats::plogis(base)
   }
   fr <- dmsa_frame(d, map = map, outcome = "out1", covariates = "cov1",
-                   random_effects = "cID", moderation = TRUE, mod = "m1",
+                   blocks = "cID", moderation = TRUE, mod = "m1",
                    mod2 = "m2", B = 199, seed = 1,
                    outdir = file.path(tempdir(), "mod2out"))
   r <- dmsa_report(fr)

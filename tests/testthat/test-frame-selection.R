@@ -19,7 +19,7 @@ test_that("cpg_map defaults to 'full', not 'confidence'", {
 .run_sel <- function(fx, sel)
   dmsa_frame(fx$data, methylation = sel, direction_source = "bundled",
              outcome = "y", covariates = "cov1",
-             random_effects = NULL, chip = FALSE, B = 19, plots = FALSE,
+             blocks = NULL, chip = FALSE, B = 19, plots = FALSE,
              tables = FALSE, summary = FALSE, progress = FALSE, beep = FALSE,
              outdir = tempfile("dmsa_sel"))
 
