@@ -29,6 +29,13 @@
 }
 
 test_that("spec 53: a clean run writes an EMPTY ledger and says so", {
+  ## A run is only "clean" where a probe-coordinate source exists.
+  ## Without cpgdirection, dmsa_probe_coords() has no route 0, the locus
+  ## panel falls back to even spacing and the gene model is not drawn --
+  ## both are recorded in the ledger, correctly. That is a different
+  ## scenario, covered by the fallback specs below.
+  skip_if(is.null(dmsa:::.cpgd("cpgd_cpg_positions")),
+          "cpgdirection not installed: no probe coordinates")
   od <- tempfile("dmsa_qc_clean")
   f <- .qc_frame(od)
   r <- suppressWarnings(suppressMessages(dmsa_report(f)))

@@ -30,6 +30,7 @@
 }
 
 test_that("overview: one panel per system, 40-unit pages, named files", {
+  skip_if_not_installed("png")   ## the page-height assertions read the PNG back
   set.seed(7)
   fr <- .fr_fake(); res <- .res_fake(52, 12)
   base <- file.path(tempfile("figrules"), "overview_y")
@@ -64,6 +65,7 @@ test_that("overview: system slug and page suffix appear only when needed", {
 })
 
 test_that("overview: pages are split by naming-statistic rank within a system", {
+  skip_if_not_installed("png")   ## the page-height assertions read the PNG back
   set.seed(7)
   fr <- .fr_fake(); res <- .res_fake(52, 12)
   base <- file.path(tempfile("figrules"), "overview_y")
